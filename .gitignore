@@ -1,0 +1,7 @@
+# Ignore heavy ONNX model files, npm modules & temp data
+models/
+node_modules/
+Storyboard/
+*.tmp
+*.log
+.DS_Store
