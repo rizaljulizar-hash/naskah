@@ -367,6 +367,31 @@ body {
     font-family: var(--font-mono);
 }
 
+/* BADGES (VO & ON-CAM) */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: var(--radius-sm);
+    font-size: 0.72rem;
+    font-weight: 600;
+    width: fit-content;
+    margin-top: 3px;
+}
+
+.badge-vo {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-oncam {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 /* VIDEO PREVIEW CELL & MINI PLAYER FIX */
 .minimal-table td.video-preview-cell {
     padding: 10px !important;

@@ -28,11 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileNameDisplay = document.getElementById('file-name-display');
     const fileMetaDisplay = document.getElementById('file-meta-display');
     const labelImportVideo = document.getElementById('label-import-video');
-
-    const scriptStatusBadge = document.getElementById('script-status-badge');
-    const scriptNameText = document.getElementById('script-name-text');
-    const btnClearScript = document.getElementById('btn-clear-script');
-    const btnPreviewScript = document.getElementById('btn-preview-script');
+    const labelImportScript = document.getElementById('label-import-script');
 
     // Settings Modal
     const btnOpenSettings = document.getElementById('btn-open-settings');
@@ -401,10 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (transcriber) {
                     transcriber.setReferenceScript(cleanDialogue);
                 }
-                const wordCount = cleanDialogue.split(/\s+/).length;
-                const shotCountMsg = parsedStoryboardShots ? ` (${parsedStoryboardShots.length} Shot)` : '';
-                if (scriptNameText) scriptNameText.textContent = `${file.name}${shotCountMsg}`;
-                if (scriptStatusBadge) scriptStatusBadge.classList.remove('hidden');
+                if (labelImportScript) labelImportScript.textContent = `Ganti Naskah`;
 
                 if (parsedStoryboardShots && parsedStoryboardShots.length > 0) {
                     applyScriptToTable(parsedStoryboardShots);
@@ -424,19 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
         scriptFileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             await handleScriptFile(file);
-        });
-    }
-
-    const scriptBox = document.getElementById('script-box');
-    if (scriptBox) {
-        scriptBox.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-        scriptBox.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                await handleScriptFile(e.dataTransfer.files[0]);
-            }
         });
     }
 
@@ -547,28 +527,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (btnPreviewScript) {
-        btnPreviewScript.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (transcriber && transcriber.referenceScriptText && scriptModalTextarea) {
-                scriptModalTextarea.value = transcriber.referenceScriptText;
-            }
-            if (scriptModal) scriptModal.classList.remove('hidden');
-        });
-    }
-
     if (btnCloseScriptModal) btnCloseScriptModal.addEventListener('click', () => scriptModal.classList.add('hidden'));
     if (btnCancelScriptModal) btnCancelScriptModal.addEventListener('click', () => scriptModal.classList.add('hidden'));
-
-    if (btnClearScript) {
-        btnClearScript.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (transcriber) transcriber.setReferenceScript('');
-            if (scriptFileInput) scriptFileInput.value = '';
-            if (scriptStatusBadge) scriptStatusBadge.classList.add('hidden');
-            showToast("Naskah rujukan dihapus.");
-        });
-    }
 
     // --- CORE VIDEO FILE HANDLING WITH LOADING BREAKDOWN OVERLAY ---
 
@@ -673,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </td>
 
-                <!-- KOLOM 2: SEGMEN & SHOT + DURASI PROMINENT -->
+                <!-- KOLOM 2: SEGMEN & SHOT + DURASI + BADGE VO / ON-CAM -->
                 <td>
                     <div class="shot-cell-box">
                         <div class="shot-title">${seg.label || `Klip #${idx + 1}`}</div>
@@ -681,6 +641,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i data-lucide="clock"></i> ${formatCleanTimecode(seg.endTime - seg.startTime)}
                         </div>
                         <div class="timecode-sub">${formatCleanTimecode(seg.startTime)} ➔ ${formatCleanTimecode(seg.endTime)}</div>
+                        <span class="badge ${seg.category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}" id="cat-badge-${idx}">
+                            <i data-lucide="${seg.category === 'Voice Over' ? 'mic' : 'video'}"></i>
+                            ${seg.category || 'Voice Over'}
+                        </span>
                     </div>
                 </td>
 
@@ -705,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Adjust height after DOM insertion
             setTimeout(autoResize, 0);
 
-            // Video Play / Pause logic
+            // Video Play / Pause & Category Detection Logic
             const videoEl = tr.querySelector('video.mini-video-player');
             const controlBar = tr.querySelector('.mini-controls-bar');
             const controlBtn = tr.querySelector('.btn-mini-control');
@@ -762,6 +726,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 videoEl.addEventListener('click', () => {
                     togglePlayPause();
+                });
+            }
+
+            // Detect segment category (VO vs On-Cam) dynamically
+            if (!seg.category && currentVideoUrl) {
+                transcriber.detectSegmentCategory(currentVideoUrl, seg.startTime, seg.endTime).then(category => {
+                    seg.category = category;
+                    const badgeEl = document.getElementById(`cat-badge-${idx}`);
+                    if (badgeEl) {
+                        badgeEl.className = `badge ${category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}`;
+                        badgeEl.innerHTML = `<i data-lucide="${category === 'Voice Over' ? 'mic' : 'video'}"></i> ${category}`;
+                        lucide.createIcons();
+                    }
                 });
             }
 
