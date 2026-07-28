@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function parseMarkdownStoryboard(mdText) {
         const shotList = [];
-        let currentSegment = null;
+        let currentSegment = "SEGMENT I";
         let currentShotNumber = 1;
 
         const lines = mdText.split(/\r?\n/);
@@ -442,10 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (line.startsWith('|')) {
                 const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-                if (cells.length >= 3) {
-                    const col1 = cells[0];
-                    const col2 = cells[1];
-                    const col3 = cells[2];
+                if (cells.length >= 2) {
+                    const col1 = cells[0] || '';
+                    const col2 = cells[1] || '';
+                    const col3 = cells[2] || '';
 
                     if (/^(SHOT|NO\.?)$/i.test(col1) || /^[-:\s]+$/.test(col1)) {
                         continue;
@@ -463,8 +463,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentShotNumber = parseInt(shotMatch[1], 10);
                     }
 
-                    if (col3) {
-                        let dialogue = col3
+                    let rawDialogue = col3 || (/(TALENT|GURU|AUDIO|VO|DIALOG)\s*:/i.test(col2) ? col2 : '');
+                    if (rawDialogue) {
+                        let dialogue = rawDialogue
                             .replace(/!\[\]\[image\d+\]/gi, '')
                             .replace(/[\*\_\#\\!]/g, '')
                             .replace(/^(TALENT|GURU|NARRATOR|PRESENTER|DUBBING)\s*(\(.*?\))?\s*:\s*(ON-?CAM)?/gi, '')
@@ -474,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             .replace(/\s+/g, ' ')
                             .trim();
 
-                        if (dialogue.length > 0 && currentSegment) {
+                        if (dialogue.length > 0) {
                             const segClean = currentSegment.replace(/SEGMENT\s+/i, 'SG ').trim();
                             shotList.push({
                                 segment: currentSegment,
@@ -493,75 +494,115 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let parsedStoryboardShots = null;
 
+    async function handleScriptFile(file) {
+        if (!file) return;
+
+        showToast("Membaca & menganalisis struktur Storyboard...", "info");
+
+        try {
+            let rawText = "";
+            parsedStoryboardShots = null;
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'md' || ext === 'markdown') {
+                rawText = await file.text();
+                parsedStoryboardShots = parseMarkdownStoryboard(rawText);
+                if (parsedStoryboardShots.length > 0) {
+                    rawText = parsedStoryboardShots.map(s => `[${s.label}]\n${s.dialogue}`).join('\n\n');
+                }
+            } else if (ext === 'docx' || ext === 'doc') {
+                const arrayBuffer = await file.arrayBuffer();
+                if (window.mammoth) {
+                    const res = await window.mammoth.extractRawText({ arrayBuffer });
+                    rawText = res.value || "";
+                } else {
+                    const dec = new TextDecoder('utf-8');
+                    const rawStr = dec.decode(new Uint8Array(arrayBuffer));
+                    rawText = rawStr.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+                }
+            } else if (ext === 'pdf') {
+                const arrayBuffer = await file.arrayBuffer();
+                if (window.pdfjsLib) {
+                    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    parsedStoryboardShots = await parseStructuredStoryboard(pdf);
+
+                    if (parsedStoryboardShots.length > 0) {
+                        rawText = parsedStoryboardShots.map(s => `[${s.label}]\n${s.dialogue}`).join('\n\n');
+                    } else {
+                        const textChunks = [];
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const content = await page.getTextContent();
+                            const pageText = content.items.map(item => item.str).join(' ');
+                            textChunks.push(pageText);
+                        }
+                        rawText = textChunks.join('\n\n');
+                    }
+                } else {
+                    const dec = new TextDecoder('latin1');
+                    const rawStr = dec.decode(new Uint8Array(arrayBuffer));
+                    rawText = rawStr.replace(/[^\x20-\x7E\s]/g, ' ').replace(/\s+/g, ' ');
+                }
+            } else {
+                // Default fallback for .txt or unknown extensions
+                rawText = await file.text();
+                parsedStoryboardShots = parseMarkdownStoryboard(rawText);
+                if (parsedStoryboardShots.length > 0) {
+                    rawText = parsedStoryboardShots.map(s => `[${s.label}]\n${s.dialogue}`).join('\n\n');
+                }
+            }
+
+            const cleanDialogue = parsedStoryboardShots ? rawText : extractOnlyDialogue(rawText.trim());
+
+            if (cleanDialogue.length > 0) {
+                currentScriptFileName = file.name;
+                if (transcriber) {
+                    transcriber.setReferenceScript(cleanDialogue);
+                }
+                const wordCount = cleanDialogue.split(/\s+/).length;
+                const shotCountMsg = parsedStoryboardShots ? ` • ${parsedStoryboardShots.length} Shot terdeteksi` : '';
+                scriptNameText.textContent = `${file.name} (${wordCount} kata${shotCountMsg})`;
+                scriptStatusBadge.classList.remove('hidden');
+
+                if (parsedStoryboardShots && parsedStoryboardShots.length > 0) {
+                    applyScriptToTable(parsedStoryboardShots);
+                }
+
+                showToast(`Naskah "${file.name}" berhasil diaktifkan!`, "success");
+            } else {
+                showToast("File naskah tidak berisi teks dialog yang valid.", "warning");
+            }
+        } catch (err) {
+            console.error("Gagal membaca file naskah:", err);
+            showToast("Gagal membaca file naskah.", "error");
+        }
+    }
+
     if (scriptFileInput) {
         scriptFileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
-            if (!file) return;
+            await handleScriptFile(file);
+        });
+    }
 
-            showToast("Membaca & menganalisis struktur Storyboard...", "info");
-
-            try {
-                let rawText = "";
-                parsedStoryboardShots = null;
-                const ext = file.name.split('.').pop().toLowerCase();
-
-                if (ext === 'txt') {
-                    rawText = await file.text();
-                } else if (ext === 'md' || ext === 'markdown') {
-                    rawText = await file.text();
-                    parsedStoryboardShots = parseMarkdownStoryboard(rawText);
-                    if (parsedStoryboardShots.length > 0) {
-                        rawText = parsedStoryboardShots.map(s => `[${s.label}]\n${s.dialogue}`).join('\n\n');
-                    }
-                } else if (ext === 'docx' || ext === 'doc') {
-                    const arrayBuffer = await file.arrayBuffer();
-                    if (window.mammoth) {
-                        const res = await window.mammoth.extractRawText({ arrayBuffer });
-                        rawText = res.value || "";
-                    } else {
-                        const dec = new TextDecoder('utf-8');
-                        const rawStr = dec.decode(new Uint8Array(arrayBuffer));
-                        rawText = rawStr.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-                    }
-                } else if (ext === 'pdf') {
-                    const arrayBuffer = await file.arrayBuffer();
-                    if (window.pdfjsLib) {
-                        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                        
-                        // Parse PDF with exact Segment + Shot + Col 3 Dialogue structure!
-                        parsedStoryboardShots = await parseStructuredStoryboard(pdf);
-
-                        if (parsedStoryboardShots.length > 0) {
-                            rawText = parsedStoryboardShots.map(s => `[${s.label}]\n${s.dialogue}`).join('\n\n');
-                        } else {
-                            const textChunks = [];
-                            for (let i = 1; i <= pdf.numPages; i++) {
-                                const page = await pdf.getPage(i);
-                                const content = await page.getTextContent();
-                                const pageText = content.items.map(item => item.str).join(' ');
-                                textChunks.push(pageText);
-                            }
-                            rawText = textChunks.join('\n\n');
-                        }
-                    } else {
-                        const dec = new TextDecoder('latin1');
-                        const rawStr = dec.decode(new Uint8Array(arrayBuffer));
-                        rawText = rawStr.replace(/[^\x20-\x7E\s]/g, ' ').replace(/\s+/g, ' ');
-                    }
-                }
-
-                // Filter out Visual/Direction noise if raw text fallback used
-                const cleanDialogue = parsedStoryboardShots ? rawText : extractOnlyDialogue(rawText.trim());
-
-                if (cleanDialogue.length > 0) {
-                    currentScriptFileName = file.name;
-                    if (transcriber) {
-                        transcriber.setReferenceScript(cleanDialogue);
-                    }
-                    const wordCount = cleanDialogue.split(/\s+/).length;
-                    const shotCountMsg = parsedStoryboardShots ? ` • ${parsedStoryboardShots.length} Shot terdeteksi` : '';
-                    scriptNameText.textContent = `${file.name} (${wordCount} kata${shotCountMsg})`;
-                    scriptStatusBadge.classList.remove('hidden');
+    const scriptBox = document.getElementById('script-box');
+    if (scriptBox) {
+        scriptBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            scriptBox.style.borderColor = 'var(--primary-color)';
+        });
+        scriptBox.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            scriptBox.style.borderColor = '';
+        });
+        scriptBox.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            scriptBox.style.borderColor = '';
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                await handleScriptFile(e.dataTransfer.files[0]);
+            }
+        });
+    }
 
                     // Pre-fill transcript textboxes automatically with clean script dialogue & Shot labels!
                     applyScriptToTable(cleanDialogue, parsedStoryboardShots);
