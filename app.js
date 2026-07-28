@@ -643,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="shot-cell-box">
                         <div class="shot-title">${seg.label || `Klip #${idx + 1}`}</div>
                         <div class="duration-badge">
-                            <i data-lucide="clock"></i> ${formatCleanTimecode(seg.endTime - seg.startTime)}
+                            <span class="ms-icon" style="font-size:15px; margin-right:2px;">schedule</span> ${formatCleanTimecode(seg.endTime - seg.startTime)}
                         </div>
                         <div class="timecode-sub">${formatCleanTimecode(seg.startTime)} ➔ ${formatCleanTimecode(seg.endTime)}</div>
                     </div>
