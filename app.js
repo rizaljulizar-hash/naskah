@@ -530,13 +530,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnCloseScriptModal) btnCloseScriptModal.addEventListener('click', () => scriptModal.classList.add('hidden'));
     if (btnCancelScriptModal) btnCancelScriptModal.addEventListener('click', () => scriptModal.classList.add('hidden'));
 
-    // --- CORE VIDEO FILE HANDLING WITH LOADING BREAKDOWN OVERLAY ---
+    // --- CORE VIDEO FILE HANDLING WITH IMMEDIATE TABLE RENDER ---
 
     function handleFileSelect(file) {
         if (!file) return;
         currentRawFile = file;
 
-        // Show Video Processing Overlay to prevent black thumbnail confusion
+        // Show Video Processing Overlay
         if (videoLoadingOverlay) videoLoadingOverlay.classList.remove('hidden');
 
         (async () => {
@@ -557,6 +557,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (parsedStoryboardShots && parsedStoryboardShots.length > 0) {
                     applyScriptToTable(parsedStoryboardShots);
+                } else {
+                    // IMMEDIATELY RENDER TABLE EVEN WITHOUT SCRIPT!
+                    renderTable();
                 }
 
                 if (emptyTableState) emptyTableState.classList.add('hidden');
@@ -617,23 +620,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="checkbox" class="part-checkbox" data-idx="${idx}" ${seg.selected ? 'checked' : ''}>
                 </td>
 
-                <!-- KOLOM 1: VIDEO PREVIEW -->
+                <!-- KOLOM 1: VIDEO PREVIEW WITH CENTERED PLAY ICON & BOTTOM-LEFT OVERLAY BADGE -->
                 <td class="video-preview-cell">
                     <div class="video-preview-wrapper" data-start="${seg.startTime}" data-end="${seg.endTime}">
                         ${currentVideoUrl ? 
                             `<video class="mini-video-player" src="${currentVideoUrl}#t=${midTime.toFixed(2)}" preload="metadata" playsinline></video>` :
                             `<div class="mini-video-player" style="display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:0.8rem;"><i data-lucide="file-video"></i> Video Part</div>`
                         }
-                        <div class="mini-controls-bar">
-                            <button class="btn-mini-control" title="Play/Pause">
-                                <i data-lucide="play"></i>
-                            </button>
-                            <span class="mini-control-text">Play</span>
-                        </div>
+                        <!-- CENTERED TRANSLUCENT PLAY BUTTON -->
+                        <button class="play-overlay-btn" title="Play/Pause">
+                            <i data-lucide="play"></i>
+                        </button>
+                        <!-- VO / ON-CAM BADGE OVERLAY AT BOTTOM-LEFT CORNER -->
+                        <span class="badge-overlay ${seg.category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}" id="cat-badge-${idx}">
+                            <i data-lucide="${seg.category === 'Voice Over' ? 'mic' : 'video'}"></i> ${seg.category || 'VO'}
+                        </span>
                     </div>
                 </td>
 
-                <!-- KOLOM 2: SEGMEN & SHOT + DURASI + BADGE VO / ON-CAM -->
+                <!-- KOLOM 2: SEGMEN & SHOT + DURASI -->
                 <td>
                     <div class="shot-cell-box">
                         <div class="shot-title">${seg.label || `Klip #${idx + 1}`}</div>
@@ -641,16 +646,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i data-lucide="clock"></i> ${formatCleanTimecode(seg.endTime - seg.startTime)}
                         </div>
                         <div class="timecode-sub">${formatCleanTimecode(seg.startTime)} ➔ ${formatCleanTimecode(seg.endTime)}</div>
-                        <span class="badge ${seg.category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}" id="cat-badge-${idx}">
-                            <i data-lucide="${seg.category === 'Voice Over' ? 'mic' : 'video'}"></i>
-                            ${seg.category || 'Voice Over'}
-                        </span>
                     </div>
                 </td>
 
                 <!-- KOLOM 3: TEKS DIALOG (AUTO-RESIZE TEXTAREA - NO SCROLLBAR) -->
                 <td>
-                    <textarea class="transcript-textarea" placeholder="Teks dialog ucapan akan muncul di sini..." data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
+                    <textarea class="transcript-textarea" placeholder="Belum ada dialog naskah rujukan..." data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
                 </td>
             `;
 
@@ -669,13 +670,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Adjust height after DOM insertion
             setTimeout(autoResize, 0);
 
-            // Video Play / Pause & Category Detection Logic
+            // Video Play / Pause Logic with Centered Play Button
             const videoEl = tr.querySelector('video.mini-video-player');
-            const controlBar = tr.querySelector('.mini-controls-bar');
-            const controlBtn = tr.querySelector('.btn-mini-control');
-            const controlText = tr.querySelector('.mini-control-text');
+            const playOverlayBtn = tr.querySelector('.play-overlay-btn');
 
-            if (videoEl && currentVideoUrl) {
+            if (videoEl && currentVideoUrl && playOverlayBtn) {
                 videoEl.addEventListener('loadedmetadata', () => {
                     videoEl.currentTime = midTime;
                 });
@@ -692,9 +691,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         videoEl.play();
                         currentlyPlayingVideo = videoEl;
                         
-                        controlBtn.innerHTML = `<i data-lucide="pause"></i>`;
-                        controlText.textContent = `Pause`;
-                        controlBar.classList.add('playing');
+                        playOverlayBtn.innerHTML = `<i data-lucide="pause"></i>`;
+                        playOverlayBtn.classList.add('playing');
                         lucide.createIcons();
 
                         const checkEndTime = () => {
@@ -702,9 +700,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 videoEl.pause();
                                 videoEl.currentTime = midTime;
                                 videoEl.removeEventListener('timeupdate', checkEndTime);
-                                controlBtn.innerHTML = `<i data-lucide="play"></i>`;
-                                controlText.textContent = `Play`;
-                                controlBar.classList.remove('playing');
+                                playOverlayBtn.innerHTML = `<i data-lucide="play"></i>`;
+                                playOverlayBtn.classList.remove('playing');
                                 lucide.createIcons();
                             }
                         };
@@ -712,14 +709,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         videoEl.pause();
                         videoEl.currentTime = midTime;
-                        controlBtn.innerHTML = `<i data-lucide="play"></i>`;
-                        controlText.textContent = `Play`;
-                        controlBar.classList.remove('playing');
+                        playOverlayBtn.innerHTML = `<i data-lucide="play"></i>`;
+                        playOverlayBtn.classList.remove('playing');
                         lucide.createIcons();
                     }
                 };
 
-                controlBar.addEventListener('click', (e) => {
+                playOverlayBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     togglePlayPause();
                 });
@@ -735,7 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     seg.category = category;
                     const badgeEl = document.getElementById(`cat-badge-${idx}`);
                     if (badgeEl) {
-                        badgeEl.className = `badge ${category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}`;
+                        badgeEl.className = `badge-overlay ${category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}`;
                         badgeEl.innerHTML = `<i data-lucide="${category === 'Voice Over' ? 'mic' : 'video'}"></i> ${category}`;
                         lucide.createIcons();
                     }
