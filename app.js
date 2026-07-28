@@ -679,6 +679,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     videoEl.currentTime = midTime;
                 });
 
+                videoEl.addEventListener('seeked', () => {
+                    const category = transcriber.analyzeCanvasCategory(videoEl);
+                    seg.category = category;
+                    const badgeEl = document.getElementById(`cat-badge-${idx}`);
+                    if (badgeEl) {
+                        badgeEl.className = `symbol-overlay ${category === 'Voice Over' ? 'symbol-vo' : 'symbol-oncam'}`;
+                        badgeEl.title = category;
+                        badgeEl.innerHTML = `<i data-lucide="${category === 'Voice Over' ? 'mic' : 'video'}"></i>`;
+                        lucide.createIcons();
+                    }
+                }, { once: true });
+
                 const togglePlayPause = () => {
                     if (currentlyPlayingVideo && currentlyPlayingVideo !== videoEl) {
                         currentlyPlayingVideo.pause();

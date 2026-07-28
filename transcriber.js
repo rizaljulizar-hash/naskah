@@ -959,32 +959,35 @@ class AudioTranscriber {
     analyzeCanvasCategory(videoOrCanvasElement) {
         try {
             const canvas = document.createElement('canvas');
-            canvas.width = 32;
-            canvas.height = 32;
+            canvas.width = 64;
+            canvas.height = 64;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(videoOrCanvasElement, 0, 0, 32, 32);
+            ctx.drawImage(videoOrCanvasElement, 0, 0, 64, 64);
 
-            const imgData = ctx.getImageData(0, 0, 32, 32).data;
+            const imgData = ctx.getImageData(0, 0, 64, 64).data;
             let totalBrightness = 0;
-            let maxPixelDiff = 0;
+            let colorVariance = 0;
             const firstR = imgData[0], firstG = imgData[1], firstB = imgData[2];
 
             for (let i = 0; i < imgData.length; i += 4) {
                 const r = imgData[i];
                 const g = imgData[i + 1];
                 const b = imgData[i + 2];
-                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
                 totalBrightness += brightness;
 
                 const diff = Math.abs(r - firstR) + Math.abs(g - firstG) + Math.abs(b - firstB);
-                if (diff > maxPixelDiff) maxPixelDiff = diff;
+                colorVariance += diff;
             }
 
-            const avgBrightness = totalBrightness / (imgData.length / 4);
-            console.log(`[CategoryDetect] Avg Brightness: ${avgBrightness.toFixed(1)}, Max Pixel Diff: ${maxPixelDiff}`);
+            const numPixels = imgData.length / 4;
+            const avgBrightness = totalBrightness / numPixels;
+            const avgVariance = colorVariance / numPixels;
 
-            // In H.264 compressed video, a black / blank frame has avgBrightness < 28 and maxPixelDiff < 20
-            if (avgBrightness < 28 && maxPixelDiff < 20) {
+            console.log(`[CategoryDetect] Avg Brightness: ${avgBrightness.toFixed(1)}, Avg Variance: ${avgVariance.toFixed(1)}`);
+
+            // Blank/black video frame or dark slide background (VO)
+            if (avgBrightness < 32 || avgVariance < 20) {
                 return 'Voice Over';
             }
             return 'On-Cam';
