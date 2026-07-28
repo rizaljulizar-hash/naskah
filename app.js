@@ -604,24 +604,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-                    // Pre-fill transcript textboxes automatically with clean script dialogue & Shot labels!
-                    applyScriptToTable(cleanDialogue, parsedStoryboardShots);
-
-                    // Open Modal for review & quick edit
-                    if (scriptModalTextarea) scriptModalTextarea.value = cleanDialogue;
-                    if (scriptModal) scriptModal.classList.remove('hidden');
-
-                    showToast(`Naskah "${file.name}" terdeteksi! ${parsedStoryboardShots ? parsedStoryboardShots.length : 0} Shot berhasil dipetakan.`);
-                } else {
-                    throw new Error("Teks dialog tidak terdeteksi di naskah.");
-                }
-            } catch (err) {
-                console.error("Script parse error:", err);
-                showToast(`Gagal membaca naskah: ${err.message}`, "warning");
-            }
-        });
-    }
-
     if (btnPreviewScript) {
         btnPreviewScript.addEventListener('click', (e) => {
             e.preventDefault();
