@@ -421,6 +421,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
         flushCurrentShot();
         return shotList;
+    }    // --- MARKDOWN STORYBOARD PARSER (.MD / .MARKDOWN) ---
+
+    function parseMarkdownStoryboard(mdText) {
+        const shotList = [];
+        let currentSegment = null;
+        let currentShotNumber = 1;
+
+        const lines = mdText.split(/\r?\n/);
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+
+            const segMatch = line.match(/\b(SEGMENT\s+[I|V|X\d]+[^\r\n]*)/i);
+            if (segMatch) {
+                currentSegment = segMatch[1].replace(/\|/g, '').trim().toUpperCase();
+                currentShotNumber = 1;
+            }
+
+            if (line.startsWith('|')) {
+                const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+                if (cells.length >= 3) {
+                    const col1 = cells[0];
+                    const col2 = cells[1];
+                    const col3 = cells[2];
+
+                    if (/^(SHOT|NO\.?)$/i.test(col1) || /^[-:\s]+$/.test(col1)) {
+                        continue;
+                    }
+
+                    const segInCol1 = col1.match(/\b(SEGMENT\s+[I|V|X\d]+[^\r\n]*)/i);
+                    if (segInCol1) {
+                        currentSegment = segInCol1[1].toUpperCase();
+                        currentShotNumber = 1;
+                        continue;
+                    }
+
+                    const shotMatch = col1.match(/^(\d+)[\.\s]?/);
+                    if (shotMatch) {
+                        currentShotNumber = parseInt(shotMatch[1], 10);
+                    }
+
+                    if (col3) {
+                        let dialogue = col3
+                            .replace(/!\[\]\[image\d+\]/gi, '')
+                            .replace(/[\*\_\#\\!]/g, '')
+                            .replace(/^(TALENT|GURU|NARRATOR|PRESENTER|DUBBING)\s*(\(.*?\))?\s*:\s*(ON-?CAM)?/gi, '')
+                            .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
+                            .replace(/\bON\s*CAM\b/gi, '')
+                            .replace(/\bMS\.\s*TALENT\b/gi, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+
+                        if (dialogue.length > 0 && currentSegment) {
+                            const segClean = currentSegment.replace(/SEGMENT\s+/i, 'SG ').trim();
+                            shotList.push({
+                                segment: currentSegment,
+                                shot: currentShotNumber,
+                                label: `${segClean} - SHT ${currentShotNumber}`,
+                                dialogue: dialogue
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        return shotList;
     }
 
     let parsedStoryboardShots = null;
@@ -439,6 +507,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (ext === 'txt') {
                     rawText = await file.text();
+                } else if (ext === 'md' || ext === 'markdown') {
+                    rawText = await file.text();
+                    parsedStoryboardShots = parseMarkdownStoryboard(rawText);
+                    if (parsedStoryboardShots.length > 0) {
+                        rawText = parsedStoryboardShots.map(s => `[${s.label}]\n${s.dialogue}`).join('\n\n');
+                    }
                 } else if (ext === 'docx' || ext === 'doc') {
                     const arrayBuffer = await file.arrayBuffer();
                     if (window.mammoth) {

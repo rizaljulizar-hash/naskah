@@ -125,11 +125,11 @@
                         </div>
 
                         <!-- Script / Storyboard Guidance Input -->
-                        <div class="config-item script-box" title="Unggah file naskah/storyboard (.pdf, .docx, .txt) sebagai rujukan agar transkrip AI 100% akurat tanpa typo">
+                        <div class="config-item script-box" title="Unggah file naskah/storyboard (.pdf, .docx, .md, .txt) sebagai rujukan agar transkrip AI 100% akurat tanpa typo">
                             <label for="script-file-input" class="btn-script-upload" style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); color: #a5b4fc; font-size: 0.85rem; font-weight: 600; transition: all 0.2s;">
                                 <i data-lucide="file-text"></i> <span id="script-label-text">Rujukan Naskah</span>
                             </label>
-                            <input type="file" id="script-file-input" accept=".pdf,.docx,.doc,.txt" style="display: none;">
+                            <input type="file" id="script-file-input" accept=".pdf,.docx,.doc,.txt,.md,.markdown" style="display: none;">
                             <div id="script-status-badge" class="badge badge-script hidden" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">
                                 <i data-lucide="check-circle-2"></i> <span id="script-name-text">naskah.docx</span>
                                 <button id="btn-preview-script" style="background: none; border: none; color: #60a5fa; cursor: pointer; font-size: 0.8rem; font-weight: 700; text-decoration: underline; padding: 0 4px;" title="Lihat & Edit Dialog Naskah">Edit Dialog</button>
