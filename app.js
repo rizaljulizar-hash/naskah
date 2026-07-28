@@ -1,6 +1,6 @@
 /**
  * Video Timestamp & Transcriber - Application Controller
- * Clean, professional, mature UI without clutter or emojis.
+ * Clean, professional, minimal UI layout.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,46 +11,66 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentVideoUrl = null;
     let transcriptSegments = [];
     let currentlyPlayingVideo = null;
+    let currentScriptFileName = "";
 
     // Audio Transcriber Instance
     const transcriber = new AudioTranscriber();
 
-    // DOM Elements
-    const dropZone = document.getElementById('drop-zone');
+    // DOM Elements - Topbar & Inputs
     const fileInput = document.getElementById('file-input');
-    const btnBrowse = document.getElementById('btn-browse');
-    const btnImportHeader = document.getElementById('btn-import-header');
-    
-    const uploadSection = document.getElementById('upload-section');
-    const workspaceSection = document.getElementById('workspace-section');
+    const scriptFileInput = document.getElementById('script-file-input');
 
-    // Header & Meta Elements
+    const btnImportHeader = document.getElementById('btn-import-header');
+    const btnImportScript = document.getElementById('btn-import-script');
+    const btnEmptyImportVideo = document.getElementById('btn-empty-import-video');
+    const btnEmptyImportScript = document.getElementById('btn-empty-import-script');
+
     const fileNameDisplay = document.getElementById('file-name-display');
     const fileMetaDisplay = document.getElementById('file-meta-display');
+    const labelImportVideo = document.getElementById('label-import-video');
+
+    const scriptStatusBadge = document.getElementById('script-status-badge');
+    const scriptNameText = document.getElementById('script-name-text');
+    const btnClearScript = document.getElementById('btn-clear-script');
+    const btnPreviewScript = document.getElementById('btn-preview-script');
+
+    // Settings Modal
+    const btnOpenSettings = document.getElementById('btn-open-settings');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+    const btnSaveSettings = document.getElementById('btn-save-settings');
+    const settingsModal = document.getElementById('settings-modal');
     const modelSelect = document.getElementById('model-select');
     const geminiApiKeyInput = document.getElementById('gemini-api-key');
 
-    // Load saved Gemini API Key from localStorage
+    // Load saved Gemini API Key
     const savedApiKey = localStorage.getItem('gemini_api_key') || '';
     if (geminiApiKeyInput) {
         geminiApiKeyInput.value = savedApiKey;
         transcriber.setGeminiApiKey(savedApiKey);
     }
-
-    // Set default model engine
     if (modelSelect) {
         transcriber.setModel(modelSelect.value);
     }
 
-    // Action Buttons
-    const btnTranscribeAll = document.getElementById('btn-transcribe-all');
-    const btnStopTranscribe = document.getElementById('btn-stop-transcribe');
+    // Loading & Banner Overlays
+    const videoLoadingOverlay = document.getElementById('video-loading-overlay');
     const statusBanner = document.getElementById('status-banner');
     const statusText = document.getElementById('status-text');
-    const checkAllParts = document.getElementById('check-all-parts');
+    const btnStopTranscribe = document.getElementById('btn-stop-transcribe');
 
-    // Table Body
+    // Table & Empty State Elements
     const partsTbody = document.getElementById('parts-tbody');
+    const emptyTableState = document.getElementById('empty-table-state');
+    const toggleManualMode = document.getElementById('toggle-manual-mode');
+    const checkAllParts = document.getElementById('check-all-parts');
+    const btnTranscribeAll = document.getElementById('btn-transcribe-all');
+
+    // Script Modal
+    const scriptModal = document.getElementById('script-modal');
+    const scriptModalTextarea = document.getElementById('script-modal-textarea');
+    const btnCloseScriptModal = document.getElementById('btn-close-script-modal');
+    const btnCancelScriptModal = document.getElementById('btn-cancel-script-modal');
+    const btnSaveScriptModal = document.getElementById('btn-save-script-modal');
 
     // Export Buttons
     const btnExportTxt = document.getElementById('btn-export-txt');
@@ -62,8 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT LISTENERS ---
 
-    btnBrowse.addEventListener('click', () => fileInput.click());
-    btnImportHeader.addEventListener('click', () => fileInput.click());
+    if (btnImportHeader) btnImportHeader.addEventListener('click', () => fileInput.click());
+    if (btnEmptyImportVideo) btnEmptyImportVideo.addEventListener('click', () => fileInput.click());
+    if (btnImportScript) btnImportScript.addEventListener('click', () => scriptFileInput.click());
+    if (btnEmptyImportScript) btnEmptyImportScript.addEventListener('click', () => scriptFileInput.click());
 
     fileInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -71,357 +93,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFileSelect(e.dataTransfer.files[0]);
-        }
-    });
-
-    if (geminiApiKeyInput) {
-        geminiApiKeyInput.addEventListener('input', (e) => {
-            const key = e.target.value.trim();
-            localStorage.setItem('gemini_api_key', key);
-            transcriber.setGeminiApiKey(key);
+    // Settings Modal Open / Close
+    if (btnOpenSettings) {
+        btnOpenSettings.addEventListener('click', () => {
+            if (settingsModal) settingsModal.classList.remove('hidden');
         });
     }
 
-    if (modelSelect) {
-        modelSelect.addEventListener('change', (e) => {
-            const newModel = e.target.value;
-            transcriber.setModel(newModel);
-            const label = e.target.options[e.target.selectedIndex].text.split('(')[0].trim();
-            showToast(`Model AI diganti ke ${label}`);
+    if (btnCloseSettings) {
+        btnCloseSettings.addEventListener('click', () => {
+            if (settingsModal) settingsModal.classList.add('hidden');
         });
     }
 
-    // Select / Deselect All Checkbox
-    if (checkAllParts) {
-        checkAllParts.addEventListener('change', (e) => {
-            const isChecked = e.target.checked;
-            transcriptSegments.forEach(seg => seg.selected = isChecked);
-            const checkboxes = partsTbody.querySelectorAll('.part-checkbox');
-            checkboxes.forEach(cb => cb.checked = isChecked);
+    if (btnSaveSettings) {
+        btnSaveSettings.addEventListener('click', () => {
+            if (geminiApiKeyInput) {
+                const key = geminiApiKeyInput.value.trim();
+                localStorage.setItem('gemini_api_key', key);
+                transcriber.setGeminiApiKey(key);
+            }
+            if (modelSelect) {
+                transcriber.setModel(modelSelect.value);
+            }
+            if (settingsModal) settingsModal.classList.add('hidden');
+            showToast("Pengaturan AI berhasil disimpan!", "success");
         });
     }
 
-    // Stop Transcribe Button
-    if (btnStopTranscribe) {
-        btnStopTranscribe.addEventListener('click', () => {
-            transcriber.stopProcessing();
-            statusBanner.classList.add('hidden');
-            btnTranscribeAll.disabled = false;
-            btnTranscribeAll.classList.remove('btn-extracting');
-            btnTranscribeAll.innerHTML = `<i data-lucide="sparkles"></i> Transkrip Part Terpilih`;
-            lucide.createIcons();
-            showToast("Transkrip dihentikan oleh pengguna. Teks yang sudah muncul tetap tersimpan.", "info");
-        });
-    }
-
-    // Transcribe Selected Parts (Queue System)
-    btnTranscribeAll.addEventListener('click', () => {
-        if (!currentVideoUrl) {
-            alert("URL video tidak ditemukan.");
-            return;
-        }
-
-        const selectedCount = transcriptSegments.filter(s => s.selected !== false).length;
-        if (selectedCount === 0) {
-            alert("Silakan centang minimal satu part klip yang ingin ditranskrip.");
-            return;
-        }
-
-        btnTranscribeAll.disabled = true;
-        btnTranscribeAll.classList.add('btn-extracting');
-        btnTranscribeAll.innerHTML = `<i data-lucide="loader-2" class="spin"></i> Extracting (0/${selectedCount})...`;
-        if (statusBanner) statusBanner.classList.remove('hidden');
-        if (statusText) statusText.textContent = `Memulai queue transkrip AI (0/${selectedCount})...`;
-        lucide.createIcons();
-
-        transcriber.transcribeAllSegments(
-            currentVideoUrl,
-            transcriptSegments,
-            (msg) => {
-                btnTranscribeAll.innerHTML = `<i data-lucide="loader-2" class="spin"></i> ${msg}`;
-                if (statusText) statusText.textContent = msg;
-                lucide.createIcons();
-            },
-            (segIdx, updatedSeg) => {
-                const row = partsTbody.children[segIdx];
-                if (row) {
-                    const txtArea = row.querySelector('.transcript-textarea');
-                    if (txtArea) txtArea.value = updatedSeg.text;
-                }
-            },
-            (segments, status) => {
-                btnTranscribeAll.disabled = false;
-                btnTranscribeAll.classList.remove('btn-extracting');
-                btnTranscribeAll.innerHTML = `<i data-lucide="sparkles"></i> Transkrip Part Terpilih`;
-                if (statusBanner) statusBanner.classList.add('hidden');
-                lucide.createIcons();
-
-                if (status === 'cancelled') {
-                    showToast("Transkrip dihentikan. Teks yang sudah jadi tetap tersimpan.");
-                } else if (status === 'no_selection') {
-                    showToast("Tidak ada part terpilih untuk ditranskrip.", "info");
-                } else {
-                    showToast("Queue transkrip part terpilih selesai!");
-                }
-            }
-        );
-    });
-
-    // Export .TXT Button
-    btnExportTxt.addEventListener('click', () => {
-        exportFile('txt');
-    });
-
-    // Export .MD Button
-    btnExportMd.addEventListener('click', () => {
-        exportFile('md');
-    });
-
-    // --- SCRIPT / STORYBOARD GUIDANCE HANDLING (.TXT, .DOCX, .PDF) ---
-
-    const scriptFileInput = document.getElementById('script-file-input');
-    const scriptStatusBadge = document.getElementById('script-status-badge');
-    const scriptNameText = document.getElementById('script-name-text');
-    const btnClearScript = document.getElementById('btn-clear-script');
-    const btnPreviewScript = document.getElementById('btn-preview-script');
-
-    const scriptModal = document.getElementById('script-modal');
-    const scriptModalTextarea = document.getElementById('script-modal-textarea');
-    const btnCloseScriptModal = document.getElementById('btn-close-script-modal');
-    const btnCancelScriptModal = document.getElementById('btn-cancel-script-modal');
-    const btnSaveScriptModal = document.getElementById('btn-save-script-modal');
-
-    let currentScriptFileName = "";
-
-    function extractOnlyDialogue(rawText) {
-        if (!rawText) return "";
-
-        // 1. Clean Production Header & Meta
-        let text = rawText.replace(/Judul Produksi\s*:[\s\S]*?(?=SEGMENT|Shot|\d+\.|$)/gi, '');
-        text = text.replace(/Director\s*:.*$/gm, '');
-        text = text.replace(/Date\s*:.*$/gm, '');
-
-        // 2. Scan lines for TALENT / VO / DIALOG spoken lines
-        const lines = text.split(/[\r\n]+/);
-        const dialogueLines = [];
-        let isInsideDialogue = false;
-
-        for (let line of lines) {
-            let trimmed = line.trim();
-            if (!trimmed) continue;
-
-            // Strip visual direction noise on same line
-            trimmed = trimmed
-                .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
-                .replace(/EXT\.\s*[-A-Z0-9]*/gi, '')
-                .replace(/\bMS\.\s*TALENT\b/gi, '')
-                .replace(/\bON\s*CAM\b/gi, '')
-                .replace(/\bOFF\s*CAM\b/gi, '')
-                .replace(/\bVO\s*ONLY\b/gi, '')
-                .replace(/SEGMENT\s+[I|V|X]+/gi, '')
-                .trim();
-
-            if (!trimmed) continue;
-
-            // Speaker label detection (TALENT :, VO :, AUDIO :, DIALOG :, NARRATOR :)
-            const speakerMatch = trimmed.match(/^(TALENT|VO|AUDIO|NARRATOR|PRESENTER|DIALOG|DUBBING)\s*:\s*(.*)/i);
-            if (speakerMatch) {
-                isInsideDialogue = true;
-                const content = speakerMatch[2].trim();
-                if (content) dialogueLines.push(content);
-                continue;
-            }
-
-            // Shot number marker e.g. "1." or "2."
-            if (/^(\d+\.|\bShot\s*\d+)/i.test(trimmed)) {
-                const remaining = trimmed.replace(/^(\d+\.|\bShot\s*\d+)/i, '').trim();
-                if (remaining && !/^(INT\.|EXT\.|MS\.|ON CAM|Menampilkan|BAB|Part|Tujuan)/i.test(remaining)) {
-                    dialogueLines.push(remaining);
-                }
-                continue;
-            }
-
-            // Ignore Visual description headers
-            if (/^(Menampilkan|Tujuan Pembelajaran|BAB\s*["“]|Part\s*:)/i.test(trimmed)) {
-                continue;
-            }
-
-            if (isInsideDialogue) {
-                dialogueLines.push(trimmed);
-            }
-        }
-
-        if (dialogueLines.length > 0) {
-            return dialogueLines.join('\n\n');
-        }
-
-        // Fallback cleanup if speaker tags were missing
-        return rawText
-            .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
-            .replace(/\bON\s*CAM\b/gi, '')
-            .replace(/\bMS\.\s*TALENT\b/gi, '')
-            .replace(/Menampilkan.*$/gm, '')
-            .replace(/Tujuan Pembelajaran.*$/gm, '')
-            .replace(/SEGMENT\s+[I|V|X]+/gi, '')
-            .replace(/[\r\n]+/g, '\n')
-            .trim();
-    }
-
-    // --- SMART STRUCTURAL STORYBOARD PARSER (SEGMENT + SHOT + COL 3 DIALOGUE) ---
-
-    // --- UNIVERSAL MULTI-SUBJECT STORYBOARD PARSER ---
-
-    async function parseStructuredStoryboard(pdfDoc) {
-        const shotList = [];
-        let currentSegment = null;
-        let currentShotNumber = 1;
-        let currentDialogueLines = [];
-
-        let col1MaxX = 110;
-        let col3MinX = 220;
-
-        const flushCurrentShot = () => {
-            if (currentSegment && currentDialogueLines.length > 0) {
-                const dialogueText = currentDialogueLines.join(' ').replace(/\s+/g, ' ').trim();
-                if (dialogueText.length > 0 && !/^(AUDIO|VISUAL|SHOT|NO\.|THUMBNAILS|PRODUCTION)$/i.test(dialogueText)) {
-                    const segClean = currentSegment.replace(/SEGMENT\s+/i, 'SG ').trim();
-                    shotList.push({
-                        segment: currentSegment,
-                        shot: currentShotNumber,
-                        label: `${segClean} - SHT ${currentShotNumber}`,
-                        dialogue: dialogueText
-                    });
-                }
-                currentDialogueLines = [];
-            }
-        };
-
-        for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-            const page = await pdfDoc.getPage(pageNum);
-            const textContent = await page.getTextContent();
-
-            // Extract items with position
-            const items = textContent.items.map(item => ({
-                str: item.str.trim(),
-                x: Math.round(item.transform[4]),
-                y: Math.round(item.transform[5])
-            })).filter(item => item.str.length > 0);
-
-            // Sort top-to-bottom (Y descending), then left-to-right (X ascending)
-            items.sort((a, b) => {
-                if (Math.abs(a.y - b.y) > 4) {
-                    return b.y - a.y;
-                }
-                return a.x - b.x;
+    // Toggle Manual Mode (Checkbox & Batch Button Visibility)
+    if (toggleManualMode) {
+        toggleManualMode.addEventListener('change', (e) => {
+            const isManual = e.target.checked;
+            document.querySelectorAll('.col-checkbox').forEach(el => {
+                if (isManual) el.classList.remove('hidden');
+                else el.classList.add('hidden');
             });
-
-            // Group into visual lines
-            const lines = [];
-            let currentLine = [];
-            let lastY = null;
-
-            for (const item of items) {
-                if (lastY === null || Math.abs(item.y - lastY) <= 4) {
-                    currentLine.push(item);
-                    lastY = item.y;
-                } else {
-                    if (currentLine.length > 0) lines.push(currentLine);
-                    currentLine = [item];
-                    lastY = item.y;
-                }
+            if (btnTranscribeAll) {
+                if (isManual) btnTranscribeAll.classList.remove('hidden');
+                else btnTranscribeAll.classList.add('hidden');
             }
-            if (currentLine.length > 0) lines.push(currentLine);
+        });
+    }
 
-            for (const lineItems of lines) {
-                const lineStr = lineItems.map(it => it.str).join(' ');
+    if (btnExportTxt) btnExportTxt.addEventListener('click', () => exportFile('txt'));
+    if (btnExportMd) btnExportMd.addEventListener('click', () => exportFile('md'));
 
-                // Adaptively set column bounds based on table header line if present
-                const isHeaderLine = lineItems.some(it => /^(SHOT|VIDEO|AUDIO|THUMBNAILS)$/i.test(it.str));
-                if (isHeaderLine) {
-                    const videoItem = lineItems.find(it => /^(VIDEO|VISUAL|THUMBNAILS)$/i.test(it.str));
-                    const audioItem = lineItems.find(it => /^(AUDIO|TALENT|DIRECTOR)$/i.test(it.str));
-
-                    if (videoItem) col1MaxX = Math.max(70, videoItem.x - 10);
-                    if (audioItem) col3MinX = Math.max(150, audioItem.x - 20);
-                    continue;
-                }
-
-                // 1. Detect Segment Header across various styles (e.g. SEGMENT I, SEGMENT 2: OPENING, SEGMENT I(SHOOTING))
-                const segMatch = lineStr.match(/\b(SEGMENT\s+[I|V|X\d]+[^\r\n]*)/i);
-                if (segMatch) {
-                    flushCurrentShot();
-                    currentSegment = segMatch[1].toUpperCase();
-                    currentShotNumber = 1;
-                    continue;
-                }
-
-                // Auto-start SEGMENT I if first shot starts without explicit segment header
-                if (!currentSegment) {
-                    if (lineItems.some(it => it.x < col1MaxX && /^(\d+)[\.\s]?/.test(it.str))) {
-                        currentSegment = "SEGMENT I";
-                    } else {
-                        continue;
-                    }
-                }
-
-                // 2. Detect Shot Number in Column 1 (x < col1MaxX)
-                const col1Item = lineItems.find(it => it.x < col1MaxX);
-                if (col1Item) {
-                    const shotMatch = col1Item.str.match(/^(\d+)[\.\s]?/);
-                    if (shotMatch) {
-                        const newShotNum = parseInt(shotMatch[1], 10);
-                        if (newShotNum !== currentShotNumber && newShotNum < 60) {
-                            flushCurrentShot();
-                            currentShotNumber = newShotNum;
-                        }
-                    }
-                }
-
-                // 3. Extract Column 3 Spoken Dialogue (x >= col3MinX OR line contains TALENT / AUDIO / GURU / VO / DUBBING)
-                const dialogueItems = lineItems.filter(it => {
-                    if (/(TALENT|GURU|NARRATOR|PRESENTER|DUBBING)\s*:/i.test(it.str)) return true;
-                    if (it.x >= col3MinX) {
-                        if (/^(INT\.|EXT\.|MS\.|ON CAM|OFF CAM|VO |Menampilkan|Tujuan Pembelajaran|BAB|Part:)/i.test(it.str)) {
-                            return false;
-                        }
-                        return true;
-                    }
-                    return false;
-                });
-
-                if (dialogueItems.length > 0) {
-                    let lineDialogue = dialogueItems.map(it => it.str).join(' ')
-                        .replace(/^(TALENT|GURU|NARRATOR|PRESENTER|DUBBING)\s*(\(.*?\))?\s*:\s*(ON-?CAM)?/gi, '')
-                        .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
-                        .replace(/\bON\s*CAM\b/gi, '')
-                        .replace(/\bMS\.\s*TALENT\b/gi, '')
-                        .trim();
-
-                    if (lineDialogue.length > 0 && 
-                        !/^(Judul Produksi|Director|Date|AUDIO|VISUAL|SHOT|NO\.|TALENT|Production|Thumbnails)$/i.test(lineDialogue)) {
-                        currentDialogueLines.push(lineDialogue);
-                    }
-                }
-            }
-        }
-
-        flushCurrentShot();
-        return shotList;
-    }    // --- MARKDOWN STORYBOARD PARSER (.MD / .MARKDOWN) ---
+    // --- UNIVERSAL STORYBOARD PARSERS ---
 
     function parseMarkdownStoryboard(mdText) {
         const shotList = [];
@@ -492,12 +210,137 @@ document.addEventListener('DOMContentLoaded', () => {
         return shotList;
     }
 
+    async function parseStructuredStoryboard(pdfDoc) {
+        const shotList = [];
+        let currentSegment = null;
+        let currentShotNumber = 1;
+        let currentDialogueLines = [];
+
+        let col1MaxX = 110;
+        let col3MinX = 220;
+
+        const flushCurrentShot = () => {
+            if (currentSegment && currentDialogueLines.length > 0) {
+                const dialogueText = currentDialogueLines.join(' ').replace(/\s+/g, ' ').trim();
+                if (dialogueText.length > 0 && !/^(AUDIO|VISUAL|SHOT|NO\.|THUMBNAILS|PRODUCTION)$/i.test(dialogueText)) {
+                    const segClean = currentSegment.replace(/SEGMENT\s+/i, 'SG ').trim();
+                    shotList.push({
+                        segment: currentSegment,
+                        shot: currentShotNumber,
+                        label: `${segClean} - SHT ${currentShotNumber}`,
+                        dialogue: dialogueText
+                    });
+                }
+                currentDialogueLines = [];
+            }
+        };
+
+        for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+            const page = await pdfDoc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+
+            const items = textContent.items.map(item => ({
+                str: item.str.trim(),
+                x: Math.round(item.transform[4]),
+                y: Math.round(item.transform[5])
+            })).filter(item => item.str.length > 0);
+
+            items.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+
+            const lines = [];
+            let currentLine = [];
+            let lastY = null;
+
+            for (const item of items) {
+                if (lastY === null || Math.abs(item.y - lastY) <= 4) {
+                    currentLine.push(item);
+                    lastY = item.y;
+                } else {
+                    if (currentLine.length > 0) lines.push(currentLine);
+                    currentLine = [item];
+                    lastY = item.y;
+                }
+            }
+            if (currentLine.length > 0) lines.push(currentLine);
+
+            for (const lineItems of lines) {
+                const lineStr = lineItems.map(it => it.str).join(' ');
+
+                const isHeaderLine = lineItems.some(it => /^(SHOT|VIDEO|AUDIO|THUMBNAILS)$/i.test(it.str));
+                if (isHeaderLine) {
+                    const videoItem = lineItems.find(it => /^(VIDEO|VISUAL|THUMBNAILS)$/i.test(it.str));
+                    const audioItem = lineItems.find(it => /^(AUDIO|TALENT|DIRECTOR)$/i.test(it.str));
+
+                    if (videoItem) col1MaxX = Math.max(70, videoItem.x - 10);
+                    if (audioItem) col3MinX = Math.max(150, audioItem.x - 20);
+                    continue;
+                }
+
+                const segMatch = lineStr.match(/\b(SEGMENT\s+[I|V|X\d]+[^\r\n]*)/i);
+                if (segMatch) {
+                    flushCurrentShot();
+                    currentSegment = segMatch[1].toUpperCase();
+                    currentShotNumber = 1;
+                    continue;
+                }
+
+                if (!currentSegment) {
+                    if (lineItems.some(it => it.x < col1MaxX && /^(\d+)[\.\s]?/.test(it.str))) {
+                        currentSegment = "SEGMENT I";
+                    } else {
+                        continue;
+                    }
+                }
+
+                const col1Item = lineItems.find(it => it.x < col1MaxX);
+                if (col1Item) {
+                    const shotMatch = col1Item.str.match(/^(\d+)[\.\s]?/);
+                    if (shotMatch) {
+                        const newShotNum = parseInt(shotMatch[1], 10);
+                        if (newShotNum !== currentShotNumber && newShotNum < 60) {
+                            flushCurrentShot();
+                            currentShotNumber = newShotNum;
+                        }
+                    }
+                }
+
+                const dialogueItems = lineItems.filter(it => {
+                    if (/(TALENT|GURU|NARRATOR|PRESENTER|DUBBING)\s*:/i.test(it.str)) return true;
+                    if (it.x >= col3MinX) {
+                        if (/^(INT\.|EXT\.|MS\.|ON CAM|OFF CAM|VO |Menampilkan|Tujuan Pembelajaran|BAB|Part:)/i.test(it.str)) {
+                            return false;
+                        }
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (dialogueItems.length > 0) {
+                    let lineDialogue = dialogueItems.map(it => it.str).join(' ')
+                        .replace(/^(TALENT|GURU|NARRATOR|PRESENTER|DUBBING)\s*(\(.*?\))?\s*:\s*(ON-?CAM)?/gi, '')
+                        .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
+                        .replace(/\bON\s*CAM\b/gi, '')
+                        .replace(/\bMS\.\s*TALENT\b/gi, '')
+                        .trim();
+
+                    if (lineDialogue.length > 0 && 
+                        !/^(Judul Produksi|Director|Date|AUDIO|VISUAL|SHOT|NO\.|TALENT|Production|Thumbnails)$/i.test(lineDialogue)) {
+                        currentDialogueLines.push(lineDialogue);
+                    }
+                }
+            }
+        }
+
+        flushCurrentShot();
+        return shotList;
+    }
+
     let parsedStoryboardShots = null;
 
     async function handleScriptFile(file) {
         if (!file) return;
 
-        showToast("Membaca & menganalisis struktur Storyboard...", "info");
+        showToast("Membaca & menganalisis Naskah...", "info");
 
         try {
             let rawText = "";
@@ -544,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     rawText = rawStr.replace(/[^\x20-\x7E\s]/g, ' ').replace(/\s+/g, ' ');
                 }
             } else {
-                // Default fallback for .txt or unknown extensions
                 rawText = await file.text();
                 parsedStoryboardShots = parseMarkdownStoryboard(rawText);
                 if (parsedStoryboardShots.length > 0) {
@@ -560,15 +402,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     transcriber.setReferenceScript(cleanDialogue);
                 }
                 const wordCount = cleanDialogue.split(/\s+/).length;
-                const shotCountMsg = parsedStoryboardShots ? ` • ${parsedStoryboardShots.length} Shot terdeteksi` : '';
-                scriptNameText.textContent = `${file.name} (${wordCount} kata${shotCountMsg})`;
-                scriptStatusBadge.classList.remove('hidden');
+                const shotCountMsg = parsedStoryboardShots ? ` (${parsedStoryboardShots.length} Shot)` : '';
+                if (scriptNameText) scriptNameText.textContent = `${file.name}${shotCountMsg}`;
+                if (scriptStatusBadge) scriptStatusBadge.classList.remove('hidden');
 
                 if (parsedStoryboardShots && parsedStoryboardShots.length > 0) {
                     applyScriptToTable(parsedStoryboardShots);
                 }
 
-                showToast(`Naskah "${file.name}" berhasil diaktifkan!`, "success");
+                showToast(`Naskah "${file.name}" aktif!`, "success");
             } else {
                 showToast("File naskah tidak berisi teks dialog yang valid.", "warning");
             }
@@ -589,63 +431,103 @@ document.addEventListener('DOMContentLoaded', () => {
     if (scriptBox) {
         scriptBox.addEventListener('dragover', (e) => {
             e.preventDefault();
-            scriptBox.style.borderColor = 'var(--primary-color)';
-        });
-        scriptBox.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            scriptBox.style.borderColor = '';
         });
         scriptBox.addEventListener('drop', async (e) => {
             e.preventDefault();
-            scriptBox.style.borderColor = '';
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 await handleScriptFile(e.dataTransfer.files[0]);
             }
         });
     }
 
-    if (btnPreviewScript) {
-        btnPreviewScript.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (transcriber && transcriber.referenceScriptText && scriptModalTextarea) {
-                scriptModalTextarea.value = transcriber.referenceScriptText;
+    function extractOnlyDialogue(rawText) {
+        if (!rawText) return "";
+        let text = rawText.replace(/Judul Produksi\s*:[\s\S]*?(?=SEGMENT|Shot|\d+\.|$)/gi, '');
+        text = text.replace(/Director\s*:.*$/gm, '');
+        text = text.replace(/Date\s*:.*$/gm, '');
+
+        const lines = text.split(/[\r\n]+/);
+        const dialogueLines = [];
+        let isInsideDialogue = false;
+
+        for (let line of lines) {
+            let trimmed = line.trim();
+            if (!trimmed) continue;
+
+            trimmed = trimmed
+                .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
+                .replace(/EXT\.\s*[-A-Z0-9]*/gi, '')
+                .replace(/\bMS\.\s*TALENT\b/gi, '')
+                .replace(/\bON\s*CAM\b/gi, '')
+                .replace(/\bOFF\s*CAM\b/gi, '')
+                .replace(/\bVO\s*ONLY\b/gi, '')
+                .replace(/SEGMENT\s+[I|V|X]+/gi, '')
+                .trim();
+
+            if (!trimmed) continue;
+
+            const speakerMatch = trimmed.match(/^(TALENT|VO|AUDIO|NARRATOR|PRESENTER|DIALOG|DUBBING)\s*:\s*(.*)/i);
+            if (speakerMatch) {
+                isInsideDialogue = true;
+                const content = speakerMatch[2].trim();
+                if (content) dialogueLines.push(content);
+                continue;
             }
-            if (scriptModal) scriptModal.classList.remove('hidden');
-        });
+
+            if (/^(\d+\.|\bShot\s*\d+)/i.test(trimmed)) {
+                const remaining = trimmed.replace(/^(\d+\.|\bShot\s*\d+)/i, '').trim();
+                if (remaining && !/^(INT\.|EXT\.|MS\.|ON CAM|Menampilkan|BAB|Part|Tujuan)/i.test(remaining)) {
+                    dialogueLines.push(remaining);
+                }
+                continue;
+            }
+
+            if (/^(Menampilkan|Tujuan Pembelajaran|BAB\s*["“]|Part\s*:)/i.test(trimmed)) {
+                continue;
+            }
+
+            if (isInsideDialogue) {
+                dialogueLines.push(trimmed);
+            }
+        }
+
+        if (dialogueLines.length > 0) return dialogueLines.join('\n\n');
+
+        return rawText
+            .replace(/INT\.\s*STUDIO[-A-Z0-9]*/gi, '')
+            .replace(/\bON\s*CAM\b/gi, '')
+            .replace(/\bMS\.\s*TALENT\b/gi, '')
+            .replace(/Menampilkan.*$/gm, '')
+            .replace(/Tujuan Pembelajaran.*$/gm, '')
+            .replace(/SEGMENT\s+[I|V|X]+/gi, '')
+            .replace(/[\r\n]+/g, '\n')
+            .trim();
     }
 
-    const closeScriptModal = () => {
-        if (scriptModal) scriptModal.classList.add('hidden');
-    };
-
-    if (btnCloseScriptModal) btnCloseScriptModal.addEventListener('click', closeScriptModal);
-    if (btnCancelScriptModal) btnCancelScriptModal.addEventListener('click', closeScriptModal);
-
-    function applyScriptToTable(cleanDialogue, parsedShots = null) {
+    function applyScriptToTable(scriptTextOrShots) {
         if (!transcriptSegments || transcriptSegments.length === 0) return;
 
-        const shots = parsedShots || parsedStoryboardShots;
+        let shotList = [];
 
-        if (shots && shots.length > 0) {
-            transcriptSegments.forEach((seg, i) => {
-                if (i < shots.length) {
-                    const shotObj = shots[i];
-                    seg.text = shotObj.dialogue;
-                    seg.label = shotObj.label; // e.g. "SG III - SHT 1"
-                }
+        if (Array.isArray(scriptTextOrShots) && scriptTextOrShots.length > 0) {
+            shotList = scriptTextOrShots;
+        } else if (typeof scriptTextOrShots === 'string' && scriptTextOrShots.trim().length > 0) {
+            const paragraphs = scriptTextOrShots.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0);
+            paragraphs.forEach((p, idx) => {
+                shotList.push({
+                    label: `Klip #${idx + 1}`,
+                    dialogue: p
+                });
             });
-        } else {
-            // Fallback sentence splitter
-            const sentences = (cleanDialogue || '')
-                .split(/[\r\n.!?]+/)
-                .map(s => s.trim())
-                .filter(s => s.length >= 3);
+        }
 
-            transcriptSegments.forEach((seg, i) => {
-                if (i < sentences.length) {
-                    seg.text = sentences[i];
-                    seg.label = `SG I - SHT ${i + 1}`;
+        if (shotList.length > 0) {
+            transcriptSegments.forEach((seg, idx) => {
+                if (idx < shotList.length) {
+                    seg.text = shotList[idx].dialogue;
+                    if (shotList[idx].label) {
+                        seg.label = shotList[idx].label;
+                    }
                 }
             });
         }
@@ -659,46 +541,50 @@ document.addEventListener('DOMContentLoaded', () => {
             if (transcriber) {
                 transcriber.setReferenceScript(updatedText);
             }
-            const wordCount = updatedText ? updatedText.split(/\s+/).length : 0;
-            if (scriptNameText && currentScriptFileName) {
-                scriptNameText.textContent = `${currentScriptFileName} (${wordCount} kata dialog)`;
-            }
-
-            // Automatically populate transcript textboxes with clean script dialogue!
-            applyScriptToTable(updatedText, parsedStoryboardShots);
-
-            closeScriptModal();
-            showToast("Naskah aktif & otomatis dimasukkan ke kotak transkrip!");
+            applyScriptToTable(updatedText);
+            if (scriptModal) scriptModal.classList.add('hidden');
+            showToast("Naskah aktif & otomatis dimasukkan ke tabel!");
         });
     }
+
+    if (btnPreviewScript) {
+        btnPreviewScript.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (transcriber && transcriber.referenceScriptText && scriptModalTextarea) {
+                scriptModalTextarea.value = transcriber.referenceScriptText;
+            }
+            if (scriptModal) scriptModal.classList.remove('hidden');
+        });
+    }
+
+    if (btnCloseScriptModal) btnCloseScriptModal.addEventListener('click', () => scriptModal.classList.add('hidden'));
+    if (btnCancelScriptModal) btnCancelScriptModal.addEventListener('click', () => scriptModal.classList.add('hidden'));
 
     if (btnClearScript) {
         btnClearScript.addEventListener('click', (e) => {
             e.preventDefault();
-            e.stopPropagation();
-            if (transcriber) {
-                transcriber.setReferenceScript('');
-            }
+            if (transcriber) transcriber.setReferenceScript('');
             if (scriptFileInput) scriptFileInput.value = '';
-            scriptStatusBadge.classList.add('hidden');
+            if (scriptStatusBadge) scriptStatusBadge.classList.add('hidden');
             showToast("Naskah rujukan dihapus.");
         });
     }
 
-    // --- CORE FILE HANDLING ---
+    // --- CORE VIDEO FILE HANDLING WITH LOADING BREAKDOWN OVERLAY ---
 
     function handleFileSelect(file) {
         if (!file) return;
         currentRawFile = file;
 
-        const fileName = file.name;
+        // Show Video Processing Overlay to prevent black thumbnail confusion
+        if (videoLoadingOverlay) videoLoadingOverlay.classList.remove('hidden');
 
         (async () => {
             try {
-                showToast("Membaca metadata video...", "info");
+                showToast("Memotong & memproses klip video...", "info");
 
                 const data = await VideoParser.parse(file);
-                data.fileName = fileName;
+                data.fileName = file.name;
                 currentFileData = data;
 
                 currentVideoUrl = data.videoUrl || URL.createObjectURL(file);
@@ -709,15 +595,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 initSegments();
 
-                uploadSection.classList.add('hidden');
-                workspaceSection.classList.remove('hidden');
+                if (parsedStoryboardShots && parsedStoryboardShots.length > 0) {
+                    applyScriptToTable(parsedStoryboardShots);
+                }
 
-                applyScriptToTable(transcriber ? transcriber.referenceScriptText : '', parsedStoryboardShots);
-                showToast("File video berhasil di-import!");
+                if (emptyTableState) emptyTableState.classList.add('hidden');
+                showToast("Video berhasil diproses & terpotong!", "success");
 
             } catch (err) {
                 console.error(err);
-                alert(`Gagal membaca file video: ${err.message}`);
+                showToast(`Gagal membaca video: ${err.message}`, "error");
+            } finally {
+                // Hide Video Processing Overlay
+                if (videoLoadingOverlay) videoLoadingOverlay.classList.add('hidden');
             }
         })();
     }
@@ -733,21 +623,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const markers = currentSequence ? (currentSequence.markers || []) : [];
         transcriptSegments = transcriber.buildSegmentsFromMarkers(markers, totalDur);
 
-        // Update Meta Display
-        fileNameDisplay.textContent = currentFileData.fileName;
+        // Update Topbar Meta Display
+        if (fileNameDisplay) fileNameDisplay.textContent = currentFileData.fileName;
+        if (labelImportVideo) labelImportVideo.textContent = "Ganti Video";
         const totalTimeStr = currentSequence ? currentSequence.formattedTotalDuration : VideoParser.formatTimecode(totalDur);
-        fileMetaDisplay.textContent = `${totalTimeStr} • ${transcriptSegments.length} Klip Part`;
+        if (fileMetaDisplay) fileMetaDisplay.textContent = `${totalTimeStr} • ${transcriptSegments.length} Klip Part`;
     }
 
     // --- TABLE RENDERER ---
 
     function renderTable() {
+        if (!partsTbody) return;
         partsTbody.innerHTML = '';
 
         if (transcriptSegments.length === 0) {
-            partsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">Tidak ada klip ditemukan pada video ini.</td></tr>`;
+            if (emptyTableState) emptyTableState.classList.remove('hidden');
             return;
         }
+
+        if (emptyTableState) emptyTableState.classList.add('hidden');
+
+        const isManualChecked = toggleManualMode ? toggleManualMode.checked : false;
 
         transcriptSegments.forEach((seg, idx) => {
             if (seg.selected === undefined) seg.selected = (seg.category === 'Voice Over');
@@ -756,12 +652,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const midTime = seg.startTime + Math.max(0.5, (seg.endTime - seg.startTime) / 2);
 
             tr.innerHTML = `
-                <!-- CHECKBOX PILIH PART -->
-                <td style="text-align: center; vertical-align: middle;">
-                    <input type="checkbox" class="part-checkbox" data-idx="${idx}" ${seg.selected ? 'checked' : ''} title="Centang untuk menyertakan klip ini dalam Queue Transkrip">
+                <!-- CHECKBOX PILIH PART (MANUAL MODE) -->
+                <td width="36" class="col-checkbox ${isManualChecked ? '' : 'hidden'}" style="text-align: center; vertical-align: middle;">
+                    <input type="checkbox" class="part-checkbox" data-idx="${idx}" ${seg.selected ? 'checked' : ''}>
                 </td>
 
-                <!-- KOLOM 1: VIDEO PREVIEW (MIDPOINT THUMBNAIL) -->
+                <!-- KOLOM 1: VIDEO PREVIEW -->
                 <td class="video-preview-cell">
                     <div class="video-preview-wrapper" data-start="${seg.startTime}" data-end="${seg.endTime}">
                         ${currentVideoUrl ? 
@@ -777,77 +673,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </td>
 
-                <!-- KOLOM 2: DURASI & KATEGORI -->
+                <!-- KOLOM 2: SEGMEN & SHOT + DURASI PROMINENT -->
                 <td>
-                    <div class="duration-badge-box">
-                        <span class="duration-primary">${seg.label || `Klip #${idx + 1}`}</span>
-                        <span class="duration-secondary">${formatCleanTimecode(seg.startTime)} - ${formatCleanTimecode(seg.endTime)} (Durasi: ${formatDurationText(seg.endTime - seg.startTime)})</span>
-                        <span class="badge ${seg.category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}" id="cat-badge-${idx}">
-                            <i data-lucide="${seg.category === 'Voice Over' ? 'mic' : 'video'}"></i>
-                            ${seg.category || 'On-Cam'}
-                        </span>
+                    <div class="shot-cell-box">
+                        <div class="shot-title">${seg.label || `Klip #${idx + 1}`}</div>
+                        <div class="duration-badge">
+                            <i data-lucide="clock"></i> ${formatCleanTimecode(seg.endTime - seg.startTime)}
+                        </div>
+                        <div class="timecode-sub">${formatCleanTimecode(seg.startTime)} ➔ ${formatCleanTimecode(seg.endTime)}</div>
                     </div>
                 </td>
 
-                <!-- KOLOM 3: TEXT TRANSKRIP -->
+                <!-- KOLOM 3: TEKS DIALOG (AUTO-RESIZE TEXTAREA - NO SCROLLBAR) -->
                 <td>
-                    <textarea class="transcript-textarea" placeholder="Hasil transkrip percakapan akan muncul di sini... (dapat diedit)" data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
-                </td>
-
-                <!-- KOLOM 4: TOMBOL TRANSCRIBE AI (PER BARIS) -->
-                <td style="text-align: center;">
-                    <button class="btn btn-primary btn-sm btn-transcribe-row" data-idx="${idx}">
-                        <i data-lucide="sparkles"></i> Transkrip AI
-                    </button>
+                    <textarea class="transcript-textarea" placeholder="Teks dialog ucapan akan muncul di sini..." data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
                 </td>
             `;
 
-            // Checkbox Event Listener
-            const rowCheckbox = tr.querySelector('.part-checkbox');
-            if (rowCheckbox) {
-                rowCheckbox.addEventListener('change', (e) => {
-                    seg.selected = e.target.checked;
-                    const allChecked = transcriptSegments.every(s => s.selected !== false);
-                    if (checkAllParts) checkAllParts.checked = allChecked;
-                });
-            }
+            // Textarea Auto-Resize Handler (No inner scrollbar!)
+            const txtArea = tr.querySelector('.transcript-textarea');
+            const autoResize = () => {
+                txtArea.style.height = 'auto';
+                txtArea.style.height = (txtArea.scrollHeight) + 'px';
+            };
 
-            // Video Bottom Bar Control
+            txtArea.addEventListener('input', (e) => {
+                transcriptSegments[idx].text = e.target.value;
+                autoResize();
+            });
+
+            // Adjust height after DOM insertion
+            setTimeout(autoResize, 0);
+
+            // Video Play / Pause logic
             const videoEl = tr.querySelector('video.mini-video-player');
             const controlBar = tr.querySelector('.mini-controls-bar');
             const controlBtn = tr.querySelector('.btn-mini-control');
             const controlText = tr.querySelector('.mini-control-text');
 
             if (videoEl && currentVideoUrl) {
-                const updateCategoryBadge = () => {
-                    const category = transcriber.analyzeCanvasCategory(videoEl);
-                    seg.category = category;
-
-                    // By default: ONLY Voice Over (VO) segments are checked/selected!
-                    const isVO = (category === 'Voice Over');
-                    seg.selected = isVO;
-
-                    const badgeEl = document.getElementById(`cat-badge-${idx}`);
-                    if (badgeEl) {
-                        badgeEl.className = `badge ${isVO ? 'badge-vo' : 'badge-oncam'}`;
-                        badgeEl.innerHTML = `<i data-lucide="${isVO ? 'mic' : 'video'}"></i> ${category}`;
-                        lucide.createIcons();
-                    }
-
-                    const rowCb = tr.querySelector('.part-checkbox');
-                    if (rowCb) {
-                        rowCb.checked = isVO;
-                    }
-
-                    // Update header check-all checkbox state
-                    if (checkAllParts) {
-                        const allChecked = transcriptSegments.every(s => s.selected === true);
-                        checkAllParts.checked = allChecked;
-                    }
-                };
-
-                videoEl.addEventListener('seeked', updateCategoryBadge, { once: true });
-
                 videoEl.addEventListener('loadedmetadata', () => {
                     videoEl.currentTime = midTime;
                 });
@@ -901,63 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Textarea Edit Sync
-            const txtArea = tr.querySelector('.transcript-textarea');
-            txtArea.addEventListener('input', (e) => {
-                transcriptSegments[idx].text = e.target.value;
-            });
-
-            // Single Row Transcribe Action Button
-            const btnTranscribeRow = tr.querySelector('.btn-transcribe-row');
-            btnTranscribeRow.addEventListener('click', async () => {
-                if (!currentVideoUrl) return;
-
-                btnTranscribeRow.disabled = true;
-                btnTranscribeRow.classList.add('btn-extracting');
-                btnTranscribeRow.innerHTML = `<i data-lucide="loader-2" class="spin"></i> Extracting...`;
-                lucide.createIcons();
-
-                const updatedSeg = await transcriber.transcribeSingleSegment(currentVideoUrl, seg, (msg) => {
-                    btnTranscribeRow.innerHTML = `<i data-lucide="loader-2" class="spin"></i> ${msg}`;
-                    lucide.createIcons();
-                });
-
-                txtArea.value = updatedSeg.text;
-
-                btnTranscribeRow.disabled = false;
-                btnTranscribeRow.classList.remove('btn-extracting');
-                btnTranscribeRow.classList.add('btn-done');
-                btnTranscribeRow.innerHTML = `<i data-lucide="check"></i> Selesai`;
-                lucide.createIcons();
-
-                setTimeout(() => {
-                    btnTranscribeRow.classList.remove('btn-done');
-                    btnTranscribeRow.innerHTML = `<i data-lucide="sparkles"></i> Transkrip AI`;
-                    lucide.createIcons();
-                }, 3000);
-
-                if (updatedSeg.text && updatedSeg.text.startsWith('[ERROR')) {
-                    showToast(`Klip #${idx + 1} error: ${updatedSeg.text}`);
-                } else if (updatedSeg.text) {
-                    showToast(`Klip #${idx + 1} berhasil di-transkrip!`);
-                } else {
-                    showToast(`Klip #${idx + 1} hening / tanpa percakapan.`);
-                }
-            });
-
-            // Trigger background category detection (On-Cam vs Voice Over)
-            if (!seg.category && currentVideoUrl) {
-                transcriber.detectSegmentCategory(currentVideoUrl, seg.startTime, seg.endTime).then(category => {
-                    seg.category = category;
-                    const badgeEl = document.getElementById(`cat-badge-${idx}`);
-                    if (badgeEl) {
-                        badgeEl.className = `badge ${category === 'Voice Over' ? 'badge-vo' : 'badge-oncam'}`;
-                        badgeEl.innerHTML = `<i data-lucide="${category === 'Voice Over' ? 'mic' : 'video'}"></i> ${category}`;
-                        lucide.createIcons();
-                    }
-                });
-            }
-
             partsTbody.appendChild(tr);
         });
 
@@ -1000,7 +807,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const videoName = currentFileData ? currentFileData.fileName.replace(/\.[^/.]+$/, "") : "Transkrip";
         let content = "";
         let fileName = "";
-        let mimeType = "text/plain";
 
         if (format === 'txt') {
             fileName = `${videoName}_transkrip.txt`;
@@ -1012,13 +818,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const label = seg.label || `Klip #${idx + 1}`;
                 const startStr = formatCleanTimecode(seg.startTime);
                 const endStr = formatCleanTimecode(seg.endTime);
-                const durStr = formatDurationText(seg.endTime - seg.startTime);
-                const category = seg.category || 'On-Cam';
+                const durStr = formatCleanTimecode(seg.endTime - seg.startTime);
                 const text = seg.text ? seg.text.trim() : '(Kosong)';
 
                 content += `[${label}]\n`;
                 content += `• Waktu   : ${startStr} - ${endStr} (Durasi: ${durStr})\n`;
-                content += `• Tipe    : ${category}\n`;
                 content += `• Dialog  : ${text}\n\n`;
                 content += `----------------------------------------------------------\n\n`;
             });
@@ -1031,18 +835,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const label = seg.label || `Klip #${idx + 1}`;
                 const startStr = formatCleanTimecode(seg.startTime);
                 const endStr = formatCleanTimecode(seg.endTime);
-                const durStr = formatDurationText(seg.endTime - seg.startTime);
-                const category = seg.category || 'On-Cam';
+                const durStr = formatCleanTimecode(seg.endTime - seg.startTime);
                 const text = seg.text ? seg.text.trim() : '(Kosong)';
 
                 content += `### 📌 ${label}\n`;
                 content += `- **Waktu**: \`${startStr} - ${endStr}\` *(Durasi: ${durStr})*\n`;
-                content += `- **Kategori**: \`${category}\` \n`;
                 content += `- **Dialog**:\n  > "${text}"\n\n`;
             });
         }
 
-        const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1052,17 +854,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast(`Transkrip berhasil diekspor (${fileName})!`);
+        showToast(`Transkrip berhasil diekspor (${fileName})!`, "success");
     }
 
     function showToast(msg) {
+        if (!toastMsg || !toast) return;
         toastMsg.textContent = msg;
         toast.classList.remove('hidden');
         setTimeout(() => {
             toast.classList.add('hidden');
         }, 3000);
     }
-    window.showToast = showToast;
 
     function escapeHtml(str) {
         if (!str) return '';
