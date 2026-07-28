@@ -620,20 +620,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="checkbox" class="part-checkbox" data-idx="${idx}" ${seg.selected ? 'checked' : ''}>
                 </td>
 
-                <!-- KOLOM 1: VIDEO PREVIEW WITH CLEAN PLAY ICON & TINY SYMBOL OVERLAY -->
+                <!-- KOLOM 1: VIDEO PREVIEW WITH GOOGLE MATERIAL SYMBOLS (FILLED) -->
                 <td class="video-preview-cell">
                     <div class="video-preview-wrapper" data-start="${seg.startTime}" data-end="${seg.endTime}">
                         ${currentVideoUrl ? 
                             `<video class="mini-video-player" src="${currentVideoUrl}#t=${midTime.toFixed(2)}" preload="metadata" playsinline></video>` :
-                            `<div class="mini-video-player" style="display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:0.8rem;"><i data-lucide="file-video"></i> Video Part</div>`
+                            `<div class="mini-video-player" style="display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:0.8rem;"><span class="ms-icon">video_file</span> Video Part</div>`
                         }
-                        <!-- CLEAN PLAY ICON IN CENTER (NO CIRCLE BG) -->
+                        <!-- GOOGLE MATERIAL ICON PLAY_ARROW IN CENTER (NO CIRCLE BG) -->
                         <button class="play-overlay-btn" title="Play/Pause">
-                            <i data-lucide="play"></i>
+                            <span class="ms-icon">play_arrow</span>
                         </button>
-                        <!-- TINY SYMBOL OVERLAY (MIC FOR VO, CAMERA FOR ON-CAM) AT BOTTOM-LEFT -->
-                        <div class="symbol-overlay ${seg.category === 'Voice Over' ? 'symbol-vo' : 'symbol-oncam'}" id="cat-badge-${idx}" title="${seg.category || 'Voice Over'}">
-                            <i data-lucide="${seg.category === 'Voice Over' ? 'mic' : 'video'}"></i>
+                        <!-- GOOGLE MATERIAL ICON VIDEOCAM / MIC AT BOTTOM-LEFT -->
+                        <div class="symbol-overlay" id="cat-badge-${idx}" title="${seg.category || 'Voice Over'}">
+                            <span class="ms-icon">${seg.category === 'Voice Over' ? 'mic' : 'videocam'}</span>
                         </div>
                     </div>
                 </td>
@@ -670,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Adjust height after DOM insertion
             setTimeout(autoResize, 0);
 
-            // Video Play / Pause Logic with Clean Play Icon
+            // Video Play / Pause Logic with Google Material Symbols
             const videoEl = tr.querySelector('video.mini-video-player');
             const playOverlayBtn = tr.querySelector('.play-overlay-btn');
 
@@ -684,10 +684,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     seg.category = category;
                     const badgeEl = document.getElementById(`cat-badge-${idx}`);
                     if (badgeEl) {
-                        badgeEl.className = `symbol-overlay ${category === 'Voice Over' ? 'symbol-vo' : 'symbol-oncam'}`;
                         badgeEl.title = category;
-                        badgeEl.innerHTML = `<i data-lucide="${category === 'Voice Over' ? 'mic' : 'video'}"></i>`;
-                        lucide.createIcons();
+                        badgeEl.innerHTML = `<span class="ms-icon">${category === 'Voice Over' ? 'mic' : 'videocam'}</span>`;
                     }
                 }, { once: true });
 
@@ -703,27 +701,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         videoEl.play();
                         currentlyPlayingVideo = videoEl;
                         
-                        playOverlayBtn.innerHTML = `<i data-lucide="pause"></i>`;
+                        playOverlayBtn.innerHTML = `<span class="ms-icon">pause</span>`;
                         playOverlayBtn.classList.add('playing');
-                        lucide.createIcons();
 
                         const checkEndTime = () => {
                             if (videoEl.currentTime >= seg.endTime) {
                                 videoEl.pause();
                                 videoEl.currentTime = midTime;
                                 videoEl.removeEventListener('timeupdate', checkEndTime);
-                                playOverlayBtn.innerHTML = `<i data-lucide="play"></i>`;
+                                playOverlayBtn.innerHTML = `<span class="ms-icon">play_arrow</span>`;
                                 playOverlayBtn.classList.remove('playing');
-                                lucide.createIcons();
                             }
                         };
                         videoEl.addEventListener('timeupdate', checkEndTime);
                     } else {
                         videoEl.pause();
                         videoEl.currentTime = midTime;
-                        playOverlayBtn.innerHTML = `<i data-lucide="play"></i>`;
+                        playOverlayBtn.innerHTML = `<span class="ms-icon">play_arrow</span>`;
                         playOverlayBtn.classList.remove('playing');
-                        lucide.createIcons();
                     }
                 };
 
@@ -743,10 +738,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     seg.category = category;
                     const badgeEl = document.getElementById(`cat-badge-${idx}`);
                     if (badgeEl) {
-                        badgeEl.className = `symbol-overlay ${category === 'Voice Over' ? 'symbol-vo' : 'symbol-oncam'}`;
                         badgeEl.title = category;
-                        badgeEl.innerHTML = `<i data-lucide="${category === 'Voice Over' ? 'mic' : 'video'}"></i>`;
-                        lucide.createIcons();
+                        badgeEl.innerHTML = `<span class="ms-icon">${category === 'Voice Over' ? 'mic' : 'videocam'}</span>`;
                     }
                 });
             }
