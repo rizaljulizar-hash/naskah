@@ -43,35 +43,45 @@ class AudioTranscriber {
     async ensurePipeline(onProgress) {
         if (this.whisperPipeline) return;
 
-        // If Gemini model is selected, map pipeline target to local whisper-small ONNX model
         const targetModel = this.modelName.startsWith('gemini') ? 'onnx-community/whisper-small' : this.modelName;
 
         const pipeFn = window.transformersPipeline;
         const env = window.transformersEnv;
-        if (env) {
-            env.allowLocalModels = true;
-            env.allowRemoteModels = true;
-            env.localURL = './models/';
-        }
 
-        if (onProgress) onProgress("Memuat Whisper Lokal...");
-        console.log("[Whisper] Loading ONNX model from local disk:", targetModel);
+        if (onProgress) onProgress("Memuat Whisper AI Model...");
+        console.log("[Whisper] Attempting to load ONNX model:", targetModel);
 
         try {
+            if (env) {
+                env.allowLocalModels = true;
+                env.allowRemoteModels = true;
+                env.localURL = './models/';
+            }
             if (pipeFn) {
-                this.whisperPipeline = await pipeFn('automatic-speech-recognition', targetModel, {
-                    dtype: 'q8',
-                });
+                this.whisperPipeline = await pipeFn('automatic-speech-recognition', targetModel, { dtype: 'q8' });
             } else {
                 const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3');
-                this.whisperPipeline = await mod.pipeline('automatic-speech-recognition', targetModel, {
-                    dtype: 'q8',
-                });
+                this.whisperPipeline = await mod.pipeline('automatic-speech-recognition', targetModel, { dtype: 'q8' });
             }
-            console.log("[Whisper] AI Pipeline ready!");
-        } catch (err) {
-            console.error("[Whisper] Error loading pipeline:", err);
-            throw new Error("Gagal memuat model AI Whisper: " + (err.message || err));
+            console.log("[Whisper] AI Pipeline loaded locally!");
+        } catch (localErr) {
+            console.warn("[Whisper] Local model load failed, falling back to HuggingFace Hub remote model:", localErr);
+            if (env) {
+                env.allowLocalModels = false;
+                env.allowRemoteModels = true;
+            }
+            try {
+                if (pipeFn) {
+                    this.whisperPipeline = await pipeFn('automatic-speech-recognition', targetModel, { dtype: 'q8' });
+                } else {
+                    const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3');
+                    this.whisperPipeline = await mod.pipeline('automatic-speech-recognition', targetModel, { dtype: 'q8' });
+                }
+                console.log("[Whisper] AI Pipeline loaded successfully from HuggingFace Hub!");
+            } catch (remoteErr) {
+                console.error("[Whisper] Error loading remote pipeline:", remoteErr);
+                throw new Error("Gagal memuat model AI Whisper (Lokal & Remote): " + (remoteErr.message || remoteErr));
+            }
         }
     }
 
@@ -460,12 +470,22 @@ class AudioTranscriber {
             return null;
         }
 
-        const modelCandidates = [
-            'gemini-flash-latest',
-            'gemini-2.0-flash-lite',
-            'gemini-1.5-flash-latest',
-            'gemini-2.0-flash'
+        const userSelectedModel = this.modelName.startsWith('gemini') ? this.modelName : 'gemini-2.5-flash';
+        const fallbackModels = [
+            'gemini-2.5-flash',
+            'gemini-2.5-pro',
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro',
+            'gemini-3.5-flash',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-pro-preview',
+            'gemini-3.1-flash-lite',
+            'gemini-3-flash-preview',
+            'gemini-flash-latest'
         ];
+        const modelCandidates = Array.from(new Set([userSelectedModel, ...fallbackModels]));
 
         let lastStatus = 0;
         let lastErrMsg = '';

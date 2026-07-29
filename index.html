@@ -142,10 +142,12 @@
                         <table class="minimal-table">
                             <thead>
                                 <tr>
-                                    <th width="36" class="col-checkbox hidden" style="text-align: center;">
-                                        <input type="checkbox" id="check-all-parts" class="part-checkbox" title="Pilih / Batal Semua">
+                                    <th width="210">
+                                        <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                            <input type="checkbox" id="check-all-parts" class="part-checkbox" title="Pilih / Batal Semua Part">
+                                            <span>Pratinjau Video</span>
+                                        </div>
                                     </th>
-                                    <th width="190">Pratinjau Video</th>
                                     <th width="170">Segmen & Shot / Durasi</th>
                                     <th>Teks Dialog Ucapan</th>
                                 </tr>
@@ -189,19 +191,32 @@
                     <div class="config-group">
                         <label for="gemini-api-key"><span class="ms-icon">key</span> API Key Gemini (Opsional):</label>
                         <input type="password" id="gemini-api-key" class="custom-input" placeholder="AIzaSy... (API Key dari Google AI Studio)">
-                        <span class="help-text">Jika diisi, transkripsi manual menggunakan Gemini Cloud API. Jika kosong, menggunakan Whisper AI Lokal.</span>
+                        <span class="help-text">Jika diisi, transkripsi manual menggunakan Gemini Cloud API. Jika kosong, menggunakan Whisper AI Lokal/Remote.</span>
                     </div>
 
                     <!-- AI Model Selector -->
                     <div class="config-group" style="margin-top: 16px;">
                         <label for="model-select"><span class="ms-icon">memory</span> Engine Transkrip AI:</label>
                         <select id="model-select" class="custom-select">
-                            <option value="gemini-2.0-flash" selected>Gemini 2.0 Flash (Cloud API + Fallback Whisper)</option>
-                            <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Cloud API + Fallback Whisper)</option>
-                            <option value="onnx-community/whisper-small">Whisper Small (Lokal • ~240MB)</option>
-                            <option value="onnx-community/whisper-large-v3-turbo">Whisper Large-v3 Turbo (Lokal • ~1GB)</option>
-                            <option value="onnx-community/whisper-base">Whisper Base (Lokal • ~75MB)</option>
-                            <option value="onnx-community/whisper-tiny">Whisper Tiny (Lokal • ~40MB)</option>
+                            <optgroup label="Google Gemini Models (Cloud API)">
+                                <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Sangat Cepat & Presisi • Direkomendasikan)</option>
+                                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Akurasi Maksimal)</option>
+                                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (Super Ringan)</option>
+                                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                                <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
+                                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+                                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite</option>
+                                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                            </optgroup>
+                            <optgroup label="Whisper AI Models (Lokal / Web Browser)">
+                                <option value="onnx-community/whisper-tiny">Whisper Tiny (Cepat • ~40MB)</option>
+                                <option value="onnx-community/whisper-base">Whisper Base (Standar • ~75MB)</option>
+                                <option value="onnx-community/whisper-small">Whisper Small (Akurat • ~240MB)</option>
+                                <option value="onnx-community/whisper-large-v3-turbo">Whisper Large-v3 Turbo (Sangat Akurat • ~1GB)</option>
+                            </optgroup>
                         </select>
                     </div>
                 </div>

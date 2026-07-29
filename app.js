@@ -615,25 +615,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const midTime = seg.startTime + Math.max(0.5, (seg.endTime - seg.startTime) / 2);
 
             tr.innerHTML = `
-                <!-- CHECKBOX PILIH PART (MANUAL MODE) -->
-                <td width="36" class="col-checkbox ${isManualChecked ? '' : 'hidden'}" style="text-align: center; vertical-align: middle;">
-                    <input type="checkbox" class="part-checkbox" data-idx="${idx}" ${seg.selected ? 'checked' : ''}>
-                </td>
-
-                <!-- KOLOM 1: VIDEO PREVIEW WITH GOOGLE MATERIAL SYMBOLS (FILLED) -->
+                <!-- KOLOM 1: VIDEO PREVIEW WITH CHECKBOX & GOOGLE MATERIAL SYMBOLS -->
                 <td class="video-preview-cell">
-                    <div class="video-preview-wrapper" data-start="${seg.startTime}" data-end="${seg.endTime}">
-                        ${currentVideoUrl ? 
-                            `<video class="mini-video-player" src="${currentVideoUrl}#t=${midTime.toFixed(2)}" preload="metadata" playsinline></video>` :
-                            `<div class="mini-video-player" style="display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:0.8rem;"><span class="ms-icon">video_file</span> Video Part</div>`
-                        }
-                        <!-- GOOGLE MATERIAL ICON PLAY_ARROW IN CENTER (NO CIRCLE BG) -->
-                        <button class="play-overlay-btn" title="Play/Pause">
-                            <span class="ms-icon">play_arrow</span>
-                        </button>
-                        <!-- GOOGLE MATERIAL ICON VIDEOCAM / MIC AT BOTTOM-LEFT -->
-                        <div class="symbol-overlay" id="cat-badge-${idx}" title="${seg.category || 'Voice Over'}">
-                            <span class="ms-icon">${seg.category === 'Voice Over' ? 'mic' : 'videocam'}</span>
+                    <div style="display: flex; align-items: center; gap: 8px; justify-content: center;">
+                        <input type="checkbox" class="part-checkbox" data-idx="${idx}" ${seg.selected ? 'checked' : ''} title="Pilih klip ini">
+                        <div class="video-preview-wrapper" data-start="${seg.startTime}" data-end="${seg.endTime}">
+                            ${currentVideoUrl ? 
+                                `<video class="mini-video-player" src="${currentVideoUrl}#t=${midTime.toFixed(2)}" preload="metadata" playsinline></video>` :
+                                `<div class="mini-video-player" style="display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:0.8rem;"><span class="ms-icon">video_file</span> Video Part</div>`
+                            }
+                            <!-- GOOGLE MATERIAL ICON PLAY_ARROW IN CENTER (NO CIRCLE BG) -->
+                            <button class="play-overlay-btn" title="Play/Pause">
+                                <span class="ms-icon">play_arrow</span>
+                            </button>
+                            <!-- GOOGLE MATERIAL ICON VIDEOCAM / MIC AT BOTTOM-LEFT -->
+                            <div class="symbol-overlay" id="cat-badge-${idx}" title="${seg.category || 'Voice Over'}">
+                                <span class="ms-icon">${seg.category === 'Voice Over' ? 'mic' : 'videocam'}</span>
+                            </div>
                         </div>
                     </div>
                 </td>
@@ -641,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <!-- KOLOM 2: SEGMEN & SHOT + DURASI -->
                 <td>
                     <div class="shot-cell-box">
-                        <div class="shot-title">${seg.label || `Klip #${idx + 1}`}</div>
+                        <div class="shot-title" title="${escapeHtml(seg.label || `Klip #${idx + 1}`)}">${escapeHtml(seg.label || `Klip #${idx + 1}`)}</div>
                         <div class="duration-badge">
                             <span class="ms-icon" style="font-size:15px; margin-right:2px;">schedule</span> ${formatCleanTimecode(seg.endTime - seg.startTime)}
                         </div>
@@ -649,11 +647,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </td>
 
-                <!-- KOLOM 3: TEKS DIALOG (AUTO-RESIZE TEXTAREA - NO SCROLLBAR) -->
-                <td>
-                    <textarea class="transcript-textarea" placeholder="Belum ada dialog naskah rujukan..." data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
+                <!-- KOLOM 3: TEKS DIALOG & TOMBOL TRANSKRIP SINGLE -->
+                <td class="dialog-cell">
+                    <div class="dialog-cell-wrapper">
+                        <textarea class="transcript-textarea" placeholder="Belum ada dialog naskah rujukan..." data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
+                        <button class="btn btn-secondary btn-xs btn-transcribe-single" data-idx="${idx}" title="Transkrip AI untuk klip ini saja">
+                            <span class="ms-icon" style="font-size:16px;">auto_awesome</span>
+                            <span>Transkrip</span>
+                        </button>
+                    </div>
                 </td>
             `;
+
+            // Checkbox change handler for individual row
+            const rowCheckbox = tr.querySelector('.part-checkbox');
+            if (rowCheckbox) {
+                rowCheckbox.addEventListener('change', (e) => {
+                    seg.selected = e.target.checked;
+                });
+            }
+
+            // Single Row Transcribe Button Handler
+            const btnSingleTranscribe = tr.querySelector('.btn-transcribe-single');
+            if (btnSingleTranscribe) {
+                btnSingleTranscribe.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!currentVideoUrl) {
+                        showToast("Silakan unggah video terlebih dahulu!", "warning");
+                        return;
+                    }
+                    btnSingleTranscribe.disabled = true;
+                    btnSingleTranscribe.innerHTML = `<span class="ms-icon spin" style="font-size:16px;">sync</span> Processing...`;
+                    try {
+                        await transcribeSegments([seg]);
+                        showToast(`Transkrip klip #${idx + 1} selesai!`, "success");
+                    } catch (err) {
+                        console.error(err);
+                        showToast("Gagal transkrip: " + err.message, "error");
+                    } finally {
+                        btnSingleTranscribe.disabled = false;
+                        btnSingleTranscribe.innerHTML = `<span class="ms-icon" style="font-size:16px;">auto_awesome</span> Transkrip`;
+                    }
+                });
+            }
 
             // Textarea Auto-Resize Handler (No inner scrollbar!)
             const txtArea = tr.querySelector('.transcript-textarea');
