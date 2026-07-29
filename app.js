@@ -782,8 +782,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
             partsTbody.appendChild(tr);
         });
+    }
 
-        lucide.createIcons();
+    async function transcribeSegments(segmentsToTranscribe) {
+        if (!segmentsToTranscribe || segmentsToTranscribe.length === 0) return;
+
+        for (let i = 0; i < segmentsToTranscribe.length; i++) {
+            const seg = segmentsToTranscribe[i];
+            const idx = transcriptSegments.indexOf(seg);
+
+            if (statusText) {
+                statusText.textContent = `Memproses transkrip AI klip #${idx + 1} (${i + 1}/${segmentsToTranscribe.length})...`;
+            }
+
+            try {
+                await transcriber.transcribeSingleSegment(currentVideoUrl, seg, (progressMsg) => {
+                    if (statusText) statusText.textContent = `Klip #${idx + 1}: ${progressMsg}`;
+                });
+                renderTable();
+            } catch (err) {
+                console.error(`Gagal transkrip segmen #${idx + 1}:`, err);
+            }
+        }
     }
 
     function formatCleanTimecode(seconds) {
