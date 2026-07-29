@@ -818,14 +818,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </td>
 
-                <!-- KOLOM 3: TEKS DIALOG & TOMBOL TRANSKRIP SINGLE -->
+                <!-- KOLOM 3: TEKS DIALOG & TOMBOL TRANSKRIP SINGLE / SHIFT -->
                 <td class="dialog-cell">
                     <div class="dialog-cell-wrapper">
                         <textarea class="transcript-textarea" placeholder="Belum ada dialog naskah rujukan..." data-idx="${idx}">${escapeHtml(seg.text)}</textarea>
-                        <button class="btn btn-secondary btn-xs btn-transcribe-single" data-idx="${idx}" title="Transkrip AI untuk klip ini saja">
-                            <span class="ms-icon" style="font-size:16px;">auto_awesome</span>
-                            <span>Transkrip</span>
-                        </button>
+                        <div class="dialog-cell-actions">
+                            <button class="btn btn-secondary btn-xs btn-transcribe-single" data-idx="${idx}" title="Transkrip AI untuk klip ini saja">
+                                <span class="ms-icon" style="font-size:15px;">auto_awesome</span>
+                                <span>Transkrip</span>
+                            </button>
+                            <div class="row-shift-button-group">
+                                <button class="btn btn-outline btn-xs btn-shift-up" data-idx="${idx}" title="Geser SEMUA teks NAIK ke atas dari baris ini hingga akhir">
+                                    <span class="ms-icon" style="font-size:14px;">arrow_upward</span>
+                                    <span>Naik</span>
+                                </button>
+                                <button class="btn btn-outline btn-xs btn-shift-down" data-idx="${idx}" title="Geser SEMUA teks TURUN ke bawah dari baris ini hingga akhir">
+                                    <span class="ms-icon" style="font-size:14px;">arrow_downward</span>
+                                    <span>Turun</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </td>
             `;
@@ -848,7 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     btnSingleTranscribe.disabled = true;
-                    btnSingleTranscribe.innerHTML = `<span class="ms-icon spin" style="font-size:16px;">sync</span> Processing...`;
+                    btnSingleTranscribe.innerHTML = `<span class="ms-icon spin" style="font-size:15px;">sync</span> Processing...`;
                     try {
                         await transcribeSegments([seg]);
                         showToast(`Transkrip klip #${idx + 1} selesai!`, "success");
@@ -857,8 +869,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         showToast("Gagal transkrip: " + err.message, "error");
                     } finally {
                         btnSingleTranscribe.disabled = false;
-                        btnSingleTranscribe.innerHTML = `<span class="ms-icon" style="font-size:16px;">auto_awesome</span> Transkrip`;
+                        btnSingleTranscribe.innerHTML = `<span class="ms-icon" style="font-size:15px;">auto_awesome</span> Transkrip`;
                     }
+                });
+            }
+
+            // Row Shift Up / Shift Down Buttons Handler
+            const btnShiftUp = tr.querySelector('.btn-shift-up');
+            if (btnShiftUp) {
+                btnShiftUp.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    shiftTextUpFrom(idx);
+                });
+            }
+
+            const btnShiftDown = tr.querySelector('.btn-shift-down');
+            if (btnShiftDown) {
+                btnShiftDown.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    shiftTextDownFrom(idx);
                 });
             }
 
@@ -976,6 +1005,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(`Gagal transkrip segmen #${idx + 1}:`, err);
             }
         }
+    }
+
+    function shiftTextUpFrom(startIdx) {
+        if (!transcriptSegments || startIdx < 0 || startIdx >= transcriptSegments.length) return;
+        for (let i = startIdx; i < transcriptSegments.length - 1; i++) {
+            transcriptSegments[i].text = transcriptSegments[i + 1].text;
+        }
+        transcriptSegments[transcriptSegments.length - 1].text = '';
+        saveWorkspaceState();
+        renderTable();
+        showToast(`Teks dari klip #${startIdx + 1} hingga akhir digeser NAIK ke atas!`, "info");
+    }
+
+    function shiftTextDownFrom(startIdx) {
+        if (!transcriptSegments || startIdx < 0 || startIdx >= transcriptSegments.length) return;
+        for (let i = transcriptSegments.length - 1; i > startIdx; i--) {
+            transcriptSegments[i].text = transcriptSegments[i - 1].text;
+        }
+        transcriptSegments[startIdx].text = '';
+        saveWorkspaceState();
+        renderTable();
+        showToast(`Teks dari klip #${startIdx + 1} hingga akhir digeser TURUN ke bawah!`, "info");
     }
 
     function formatCleanTimecode(seconds) {
