@@ -38,14 +38,146 @@ document.addEventListener('DOMContentLoaded', () => {
     const modelSelect = document.getElementById('model-select');
     const geminiApiKeyInput = document.getElementById('gemini-api-key');
 
-    // Load saved Gemini API Key
-    const savedApiKey = localStorage.getItem('gemini_api_key') || '';
-    if (geminiApiKeyInput) {
-        geminiApiKeyInput.value = savedApiKey;
-        transcriber.setGeminiApiKey(savedApiKey);
+    // DOM Elements - Clear All & Header Elements
+    const btnClearAllText = document.getElementById('btn-clear-all-text');
+
+    // --- INDEXEDDB WORKSPACE PERSISTENCE ---
+    const DB_NAME = 'naskah_workspace_db';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'workspace_store';
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME);
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
     }
-    if (modelSelect) {
-        transcriber.setModel(modelSelect.value);
+
+    async function saveToDB(key, val) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).put(val, key);
+            return new Promise((resolve) => {
+                tx.oncomplete = () => resolve(true);
+            });
+        } catch (err) {
+            console.warn("[IndexedDB] Save error:", key, err);
+        }
+    }
+
+    async function getFromDB(key) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const req = tx.objectStore(STORE_NAME).get(key);
+            return new Promise((resolve) => {
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            });
+        } catch (err) {
+            console.warn("[IndexedDB] Get error:", key, err);
+            return null;
+        }
+    }
+
+    async function saveWorkspaceState() {
+        try {
+            const state = {
+                transcriptSegments,
+                parsedStoryboardShots,
+                currentScriptFileName,
+                fileName: currentFileData ? currentFileData.fileName : '',
+                selectedModel: modelSelect ? modelSelect.value : ''
+            };
+            await saveToDB('workspace_state', state);
+        } catch (e) {
+            console.warn("[IndexedDB] Save state error:", e);
+        }
+    }
+
+    async function saveVideoBlob(file) {
+        try {
+            await saveToDB('video_file', {
+                blob: file,
+                name: file.name,
+                type: file.type
+            });
+        } catch (e) {
+            console.warn("[IndexedDB] Save video blob error:", e);
+        }
+    }
+
+    async function restoreWorkspaceState() {
+        try {
+            const savedApiKey = localStorage.getItem('gemini_api_key') || '';
+            const savedModel = localStorage.getItem('selected_model') || '';
+            if (geminiApiKeyInput) geminiApiKeyInput.value = savedApiKey;
+            if (savedApiKey) transcriber.setGeminiApiKey(savedApiKey);
+
+            if (savedModel && modelSelect) {
+                modelSelect.value = savedModel;
+                transcriber.setModel(savedModel);
+            } else if (modelSelect) {
+                transcriber.setModel(modelSelect.value);
+            }
+
+            const state = await getFromDB('workspace_state');
+            if (state) {
+                if (state.transcriptSegments && state.transcriptSegments.length > 0) {
+                    transcriptSegments = state.transcriptSegments;
+                }
+                if (state.parsedStoryboardShots) {
+                    parsedStoryboardShots = state.parsedStoryboardShots;
+                }
+                if (state.currentScriptFileName) {
+                    currentScriptFileName = state.currentScriptFileName;
+                    if (labelImportScript) labelImportScript.textContent = `Ganti Naskah`;
+                }
+            }
+
+            const videoRecord = await getFromDB('video_file');
+            if (videoRecord && videoRecord.blob) {
+                console.log("[IndexedDB] Restoring video file from database:", videoRecord.name);
+                const restoredFile = new File([videoRecord.blob], videoRecord.name, { type: videoRecord.type });
+                currentRawFile = restoredFile;
+
+                const data = await VideoParser.parse(restoredFile);
+                data.fileName = videoRecord.name;
+                currentFileData = data;
+                currentVideoUrl = URL.createObjectURL(videoRecord.blob);
+
+                if (currentFileData.sequences && currentFileData.sequences.length > 0) {
+                    currentSequence = currentFileData.sequences[0];
+                }
+
+                if (!transcriptSegments || transcriptSegments.length === 0) {
+                    initSegments();
+                    if (parsedStoryboardShots && parsedStoryboardShots.length > 0) {
+                        applyScriptToTable(parsedStoryboardShots);
+                    }
+                } else {
+                    if (fileNameDisplay) fileNameDisplay.textContent = videoRecord.name;
+                    if (labelImportVideo) labelImportVideo.textContent = "Ganti Video";
+                    const totalDur = currentSequence ? currentSequence.totalDuration : 60;
+                    const totalTimeStr = currentSequence ? currentSequence.formattedTotalDuration : VideoParser.formatTimecode(totalDur);
+                    if (fileMetaDisplay) fileMetaDisplay.textContent = `${totalTimeStr} • ${transcriptSegments.length} Klip Part`;
+                }
+
+                renderTable();
+                if (emptyTableState) emptyTableState.classList.add('hidden');
+                showToast(`Sesi sebelumnya dipulihkan: "${videoRecord.name}"`, "info");
+            }
+        } catch (err) {
+            console.warn("[IndexedDB] Restore state warning:", err);
+        }
     }
 
     // Loading & Banner Overlays
@@ -110,10 +242,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 transcriber.setGeminiApiKey(key);
             }
             if (modelSelect) {
+                localStorage.setItem('selected_model', modelSelect.value);
                 transcriber.setModel(modelSelect.value);
             }
+            saveWorkspaceState();
             if (settingsModal) settingsModal.classList.add('hidden');
             showToast("Pengaturan AI berhasil disimpan!", "success");
+        });
+    }
+
+    // Check All / Uncheck All Checkbox in Table Header (Beside "Pratinjau Video")
+    if (checkAllParts) {
+        checkAllParts.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            transcriptSegments.forEach(seg => {
+                seg.selected = isChecked;
+            });
+            document.querySelectorAll('.part-checkbox[data-idx]').forEach(cb => {
+                cb.checked = isChecked;
+            });
+            saveWorkspaceState();
+        });
+    }
+
+    // Clear All Text Button Handler
+    if (btnClearAllText) {
+        btnClearAllText.addEventListener('click', () => {
+            if (!transcriptSegments || transcriptSegments.length === 0) {
+                showToast("Belum ada data klip di tabel.", "warning");
+                return;
+            }
+            if (confirm("Apakah Anda yakin ingin menghapus SELURUH teks dialog di tabel?")) {
+                transcriptSegments.forEach(seg => {
+                    seg.text = '';
+                });
+                parsedStoryboardShots = null;
+                saveWorkspaceState();
+                renderTable();
+                showToast("Seluruh teks dialog berhasil dihapus!", "success");
+            }
         });
     }
 
@@ -513,6 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         renderTable();
+        saveWorkspaceState();
     }
 
     if (btnSaveScriptModal) {
@@ -561,6 +729,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // IMMEDIATELY RENDER TABLE EVEN WITHOUT SCRIPT!
                     renderTable();
                 }
+
+                saveVideoBlob(file);
+                saveWorkspaceState();
 
                 if (emptyTableState) emptyTableState.classList.add('hidden');
                 showToast("Video berhasil diproses & terpotong!", "success");
@@ -800,6 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (statusText) statusText.textContent = `Klip #${idx + 1}: ${progressMsg}`;
                 });
                 renderTable();
+                saveWorkspaceState();
             } catch (err) {
                 console.error(`Gagal transkrip segmen #${idx + 1}:`, err);
             }
@@ -905,4 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!str) return '';
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
+
+    // RESTORE PREVIOUS WORKSPACE SESSION FROM INDEXEDDB
+    restoreWorkspaceState();
 });
